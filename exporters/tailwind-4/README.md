@@ -247,3 +247,20 @@ a computed number, so it cannot point at an absolute line height token with `var
 - **tokenPrefixes:** Prefix each token type with a specific identifier.
 - **globalPrefix:** Prefix for Tailwind classes and CSS variables.
 - **findReplace:** Find and replace strings in token paths and names.
+- **groupPrefixOverrides:** Map a token path fragment to a Tailwind namespace, overriding the one derived from the token type. For example `{ "breakpoint": "breakpoint", "container": "container", "perspective": "perspective" }` exports tokens in a `Breakpoints` group as `--breakpoint-*` instead of `--spacing-*`. The matched path segment is dropped from the name. Only Dimension, Size and Space tokens are affected, since those all map to `--spacing-*` by type. This changes only the name: tokens still need the right type for their value (e.g. *Font weight* for font weights).
+
+### Tokens-only output
+- **includeTailwindImport:** When off, the base file doesn't start with `@import "tailwindcss"`. Use this when the consuming project already imports Tailwind.
+- **themeDirective:** Directive for the base `@theme` block when tokens reference other tokens. `inline` (default) copies referenced values into utilities, so a theme file that overrides a referencing token has no effect. Use `default` (`@theme`) or `static` (`@theme static`) to keep references and runtime theming.
+
+Recommended settings for a tokens-only file with runtime dark mode:
+
+```json
+{
+  "includeTailwindImport": false,
+  "themeDirective": "default",
+  "useReferences": true,
+  "themeSelector": "[data-theme=\"{theme}\"]",
+  "globalPrefix": ""
+}
+```

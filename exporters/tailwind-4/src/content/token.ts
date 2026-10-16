@@ -357,6 +357,16 @@ export function convertedToken(token: Token, mappedTokens: Map<string, Token>, t
     },
     // Handle blur values - extract just the dimension
     valueTransformer: (value: string, t: Token) => {
+      if (t.tokenType === TokenType.fontFamily) {
+        // A font stack ("Inter, sans-serif" or one with quoted family names) is already valid CSS,
+        // wrapping it in quotes would turn it into a single invalid family name
+        // @ts-ignore
+        const text: string | undefined = t.value?.text
+        if (text && value === `"${text}"` && /[,"']/.test(text)) {
+          return text
+        }
+        return undefined
+      }
       if (t.tokenType === TokenType.blur) {
         // For blur(12px) -> extract 12px
         const match = value.match(/^blur\((.*)\)$/)
@@ -477,6 +487,54 @@ function matchColorUtilityPattern(fullPath: string, patternString: string): { ma
 }
 
 /**
+ * Rewrites a leading minus in a token name to "neg", e.g. "-px" -> "neg px".
+ * Case conversion drops the minus, which would make "-px" and "px" produce the same variable.
+ * @param name The token name
+ * @returns The name with a leading minus spelled out
+ */
+function negativeSafeTokenName(name: string): string {
+  const match = name.match(/^\s*-\s*(.+)$/)
+  return match ? `neg ${match[1]}` : name
+}
+
+/**
+ * Token types that all map to `--spacing-*` by type, so only their group can tell spacing apart
+ * from breakpoints, containers or perspective
+ */
+const GROUP_OVERRIDE_TOKEN_TYPES: ReadonlySet<TokenType> = new Set([
+  TokenType.dimension,
+  TokenType.size,
+  TokenType.space
+])
+
+/**
+ * Finds the namespace configured for the token's group path in `groupPrefixOverrides`.
+ * Only applies to dimension, size and space tokens, so e.g. a "container" color group is unaffected.
+ * Keys are matched case-insensitively against each path segment; the first segment containing a key wins.
+ * @param token The token to match
+ * @returns The namespace and the path segments after the matched one, or null if nothing matches
+ */
+function matchGroupPrefixOverride(token: Token): { namespace: string; remainingPath: Array<string> } | null {
+  const overrides = exportConfiguration.groupPrefixOverrides
+  if (!overrides || Object.keys(overrides).length === 0) return null
+  if (!GROUP_OVERRIDE_TOKEN_TYPES.has(token.tokenType)) return null
+
+  const tokenPath = token.tokenPath || []
+  // Prefer longer keys so "font weight" wins over "font"
+  const keys = Object.keys(overrides).sort((a, b) => b.length - a.length)
+
+  for (let index = 0; index < tokenPath.length; index++) {
+    const segment = tokenPath[index].toLowerCase()
+    const key = keys.find(k => k.trim().length > 0 && segment.includes(k.trim().toLowerCase()))
+    if (key) {
+      return { namespace: overrides[key], remainingPath: tokenPath.slice(index + 1) }
+    }
+  }
+
+  return null
+}
+
+/**
  * Generates a code-safe variable name for a token based on its properties and configuration.
  * Includes type-specific prefix and considers token hierarchy.
  * 
@@ -492,6 +550,9 @@ export function tokenVariableName(token: Token, tokenGroups: Array<TokenGroup>):
   const applyFindReplaceBeforePrefix = exportConfiguration.findReplaceTiming !== FindReplaceTiming.AfterPrefix
   const findReplaceForNamingHelper = applyFindReplaceBeforePrefix ? exportConfiguration.findReplace : undefined
 
+  // Keep a leading minus visible in the name, since case conversion strips it and "-px" would collide with "px"
+  const tokenName = negativeSafeTokenName(token.name)
+
   // A path-based namespace override replaces the type-derived prefix entirely, and
   // drops the intermediate path segments with it - the type-derived prefix is wrong
   // precisely because the token type is not what the token represents. Naming from
@@ -505,7 +566,7 @@ export function tokenVariableName(token: Token, tokenGroups: Array<TokenGroup>):
 
   if (prefixOverride !== undefined) {
     let name = NamingHelper.codeSafeVariableName(
-      `${prefixOverride}-${token.name}`,
+      `${prefixOverride}-${tokenName}`,
       StringCase.kebabCase,
       findReplaceForNamingHelper,
       true
@@ -516,6 +577,20 @@ export function tokenVariableName(token: Token, tokenGroups: Array<TokenGroup>):
     }
 
     return name
+  }
+
+  // Use the namespace configured for the token's group, if any (e.g. breakpoints -> --breakpoint-*)
+  const groupOverride = matchGroupPrefixOverride(token)
+  if (groupOverride) {
+    let name = NamingHelper.codeSafeVariableName([groupOverride.namespace, ...groupOverride.remainingPath, tokenName], StringCase.kebabCase, findReplaceForNamingHelper, true)
+    name = normalizeForTailwindConfig(name);
+
+    // Apply find/replace after prefix if timing is set to afterPrefix
+    if (!applyFindReplaceBeforePrefix) {
+      name = applyFindReplace(name, exportConfiguration.findReplace)
+    }
+
+    return name;
   }
 
   // Handle color utility prefixes if enabled and token is a color
@@ -540,7 +615,7 @@ export function tokenVariableName(token: Token, tokenGroups: Array<TokenGroup>):
           : tokenPath
 
         // Combine remaining path with token name
-        const segments = [...remainingPath, token.name]
+        const segments = [...remainingPath, tokenName]
         const cleanName = segments.join('-').toLowerCase()
           .trim()
           .replace(/^[-\s]+|[-\s]+$/g, '') // Remove leading/trailing hyphens and spaces
@@ -561,7 +636,7 @@ export function tokenVariableName(token: Token, tokenGroups: Array<TokenGroup>):
     }
 
     // If no utility match, use standard naming
-    let name = NamingHelper.codeSafeVariableNameForToken(token, StringCase.kebabCase, parent || null, prefix, findReplaceForNamingHelper)
+    let name = NamingHelper.codeSafeVariableNameForToken({ name: tokenName }, StringCase.kebabCase, parent || null, prefix, findReplaceForNamingHelper)
     name = normalizeForTailwindConfig(name);
     
     // Apply find/replace after prefix if timing is set to afterPrefix
@@ -574,7 +649,7 @@ export function tokenVariableName(token: Token, tokenGroups: Array<TokenGroup>):
 
   // For non-color tokens or when color utility prefixes are disabled
   const parent = tokenGroups.find((group) => group.id === token.parentGroupId)
-  let name = NamingHelper.codeSafeVariableNameForToken(token, StringCase.kebabCase, parent || null, prefix, findReplaceForNamingHelper)
+  let name = NamingHelper.codeSafeVariableNameForToken({ name: tokenName }, StringCase.kebabCase, parent || null, prefix, findReplaceForNamingHelper)
   name = normalizeForTailwindConfig(name);
   
   // Apply find/replace after prefix if timing is set to afterPrefix

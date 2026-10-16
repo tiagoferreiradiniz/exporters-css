@@ -567,6 +567,47 @@
         "category": "CSS selectors"
     },
     {
+        "key": "includeTailwindImport",
+        "type": "boolean",
+        "default": true,
+        "title": "Include Tailwind import",
+        "description": "Start the base file with @import \"tailwindcss\". Turn off to export a tokens-only file for projects that already import Tailwind.",
+        "category": "CSS selectors"
+    },
+    {
+        "key": "themeDirective",
+        "type": "enum",
+        "default": "inline",
+        "title": "Theme directive with references",
+        "description": "Directive written for the base @theme block when tokens reference other tokens. Use @theme so themes can override referenced tokens at runtime.",
+        "category": "CSS selectors",
+        "options": {
+            "inline": {
+                "label": "@theme inline",
+                "description": "Utilities use the referenced value directly. Theme overrides of the referencing token have no effect."
+            },
+            "default": {
+                "label": "@theme",
+                "description": "Utilities read the token's own variable, so theme files can override it."
+            },
+            "static": {
+                "label": "@theme static",
+                "description": "Like @theme, and always emits every variable even if unused."
+            }
+        }
+    },
+    {
+        "key": "groupPrefixOverrides",
+        "type": "object",
+        "title": "Namespace by token group",
+        "description": "Map a token path fragment to a Tailwind namespace, e.g. 'breakpoint' → 'breakpoint'. Overrides the namespace derived from the token type for dimension, size and space tokens. The matched path segment is dropped from the name.",
+        "category": "CSS selectors",
+        "default": {},
+        "allowedValues": {
+            "type": "string"
+        }
+    },
+    {
         "key": "findReplace",
         "type": "object",
         "title": "Find and replace",

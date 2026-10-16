@@ -55,6 +55,9 @@ export function variableToTailwindClassName(variableName: string): string {
             }
         } else if (parts[0] === 'radius') {
             className = `rounded-${parts.slice(1).join('-')}`;
+        } else if (parts[0] === 'container') {
+            className = `${parts.slice(1).join('-')}`;
+            multiplePrefix = "[max-w|w|...]-"
         } else if (parts[0] === 'shadow') {
             if (parts[1] === 'inset') {
                 className = `shadow-inner-${parts.slice(2).join('-')}`;
