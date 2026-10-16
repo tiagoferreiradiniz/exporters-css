@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
   referenced tokens and dark mode keeps working with references enabled.
 - `groupPrefixOverrides`: choose the Tailwind namespace by token group path instead of
   token type, e.g. `{ "breakpoint": "breakpoint", "container": "container", "perspective": "perspective" }`.
+  A matching `tokenPathPrefixes` rule takes precedence.
 
 ### Fixed
 - Font family stacks (values containing commas or quotes) are no longer wrapped in an extra
@@ -27,9 +28,31 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - Forked as a TeamViewer custom exporter: `id` is now `teamviewer.exporter-tailwind-4`
   so it installs alongside the official Tailwind exporter instead of colliding with it.
-- Rem conversion is now decided per token type instead of globally. Space, Size, Dimension
-  and FontSize tokens are emitted in `rem`; BorderRadius, Blur, BorderWidth and Shadow keep
-  their authored pixel values.
+- Units and namespaces are resolved from the token **path** rather than the token type,
+  via the new `tokenPathUnits` and `tokenPathPrefixes` settings. A design system imported
+  from Figma commonly types every scalar as a generic `Dimension`, which makes the token
+  type useless as a signal and collapses the whole system into `--spacing-*`.
+- `reference/spacing/*` and `reference/font-size/*` are emitted in `rem`;
+  `radius`, `line-height` and `letter-spacing` keep their authored pixels;
+  `font-weight` has its unit stripped.
+- `remBase` is no longer gated behind `forceRemUnit`, since path rules perform rem
+  conversion with `forceRemUnit` off.
+- Typography line heights are emitted as unitless ratios of their font size, matching
+  Tailwind's own `--text-sm--line-height: calc(1.25 / 0.875)` pairing. A composite
+  authored as `14px / 20px` now emits `1.4286` rather than `20px`, so line boxes stay
+  proportional when a reader scales text or applies a text-spacing override
+  (WCAG 1.4.12). The authored value is still used where a ratio would be meaningless -
+  no font size, a zero font size, or mismatched units - and a percentage line height is
+  converted directly. Standalone `--leading-*` tokens keep their pixels, having no font
+  size to form a ratio with.
+
+### Fixed
+- Font weights are no longer emitted as `--spacing-reference-font-weight-600: 37.5rem`.
+  They are typed as generic dimensions carrying `600px`, so the previous type-based rule
+  converted them as spacing. They now emit `--font-weight-600: 600`.
+- Radius, line height and letter spacing are no longer converted to `rem`. The previous
+  rule listed `Dimension` as a rem type, which caught every generically-typed token
+  including the ones meant to stay in pixels.
 - `forceRemUnit` still converts every pixel value, so existing pipelines that enable it are
   unaffected.
 
