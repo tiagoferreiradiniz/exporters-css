@@ -170,6 +170,20 @@ test('codeSafeVariableNameForToken_removes_consecutive_duplicates_2', () => {
   )
 })
 
+test('codeSafeVariableNameForToken_keeps_repeated_numbers', () => {
+  const tokenGroup = {
+    name: 'Spacing',
+    path: [],
+    isRoot: false
+  }
+  expect(NamingHelper.codeSafeVariableNameForToken({ name: '5_5' }, StringCase.kebabCase, tokenGroup, 'spacing')).toBe(
+    'spacing-5-5'
+  )
+  expect(NamingHelper.codeSafeVariableNameForToken({ name: '1_5' }, StringCase.kebabCase, tokenGroup, 'spacing')).toBe(
+    'spacing-1-5'
+  )
+})
+
 test('codeSafeVariableNameForToken_keeps_non_consecutive_duplicates', () => {
   const token = {
     name: '500'

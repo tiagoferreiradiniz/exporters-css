@@ -20,6 +20,12 @@ export enum FindReplaceTiming {
     AfterPrefix = "afterPrefix"
 }
 
+export enum ThemeDirective {
+    Inline = "inline",
+    Default = "default",
+    Static = "static"
+}
+
 export type ColorUtilityType = 
   | 'text' 
   | 'boxShadow' 
@@ -73,6 +79,12 @@ export type ExporterConfiguration = {
   customizeStyleFileNames: boolean
   /** Prefix for Tailwind classes and CSS variables */
   globalPrefix: string
+  /** When enabled, the base file starts with `@import "tailwindcss"` */
+  includeTailwindImport: boolean
+  /** Directive used for the base `@theme` block when tokens reference other tokens */
+  themeDirective: ThemeDirective
+  /** Maps a token path fragment to a Tailwind namespace, overriding the namespace derived from the token type */
+  groupPrefixOverrides: Record<string, string>
   /** When enabled, uses specific prefixes for different color utilities */
   useColorUtilityPrefixes: boolean
   /** Configuration for color utility prefixes and their patterns */

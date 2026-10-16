@@ -6,7 +6,7 @@
 import { FileHelper, ThemeHelper, GeneralHelper } from "@supernovaio/export-utils"
 import { OutputTextFile, Token, TokenGroup, TokenType, TokenTheme } from "@supernovaio/sdk-exporters"
 import { exportConfiguration } from ".."
-import { FileStructure } from "../../config"
+import { FileStructure, ThemeDirective } from "../../config"
 import { convertedToken, isAllowedTokenType, analyzeTokensForOklchUtilities, generateOklchUtilityVariable } from "../content/token"
 import { generateTypographyClass } from "../content/typography"
 import { DEFAULT_CONFIG_FILE_NAMES } from "../constants/defaults"
@@ -107,6 +107,45 @@ function shouldDisableDefaultTailwindConfiguration(): boolean {
 }
 
 /**
+ * Generates the Tailwind import line for base files
+ *
+ * @param themePath - Path of the theme (if applicable)
+ * @returns Import line, or empty string for theme files or when disabled in the configuration
+ */
+function tailwindImportLine(themePath: string): string {
+    if (themePath || !exportConfiguration.includeTailwindImport) return ''
+
+    return exportConfiguration.globalPrefix
+        ? `@import "tailwindcss" prefix(${exportConfiguration.globalPrefix});\n\n`
+        : '@import "tailwindcss";\n\n'
+}
+
+/**
+ * Determines the block directive for a set of tokens
+ * The base @theme block gets the configured modifier when tokens reference other tokens
+ *
+ * @param selector - CSS selector of the block
+ * @param tokens - Tokens written into the block
+ * @returns Directive or selector to open the block with
+ */
+function blockDirective(selector: string, tokens: Array<Token>): string {
+    const hasReferences = exportConfiguration.useReferences && tokens.some(token =>
+        // @ts-ignore
+        token.value.referencedTokenId && token.value.referencedTokenId !== null && token.value.referencedTokenId !== undefined
+    )
+    if (selector !== '@theme' || !hasReferences) return selector
+
+    switch (exportConfiguration.themeDirective) {
+        case ThemeDirective.Default:
+            return '@theme'
+        case ThemeDirective.Static:
+            return '@theme static'
+        default:
+            return '@theme inline'
+    }
+}
+
+/**
  * Generates reset rules for Tailwind configuration
  * This function creates CSS reset rules based on the disabled styles configuration
  * 
@@ -114,7 +153,7 @@ function shouldDisableDefaultTailwindConfiguration(): boolean {
  * @returns CSS reset rules as a string
  */
 function generateResetRules(selector: string): string {
-    if (!shouldDisableDefaultTailwindConfiguration() && selector !== '@theme') return ''
+    if (!shouldDisableDefaultTailwindConfiguration()) return ''
 
     const indentString = GeneralHelper.indent(exportConfiguration.indent)
     const resetRules: string[] = []
@@ -289,12 +328,7 @@ export function styleOutputFile(tokens: Array<Token>, tokenGroups: Array<TokenGr
     }
 
     // Start with Tailwind import with prefix if configured, but only for base file
-    let content = ''
-    if (!themePath) {
-        content = exportConfiguration.globalPrefix 
-            ? `@import "tailwindcss" prefix(${exportConfiguration.globalPrefix});\n\n`
-            : '@import "tailwindcss";\n\n'
-    }
+    let content = tailwindImportLine(themePath)
 
     // Add debug information
     content += generateDebugInfo(
@@ -310,23 +344,16 @@ export function styleOutputFile(tokens: Array<Token>, tokenGroups: Array<TokenGr
 
     // Generate CSS variables
     let cssVariables = ''
-    // Include reset rules in the main file if not using separate per type structure
-    if (exportConfiguration.fileStructure !== FileStructure.SeparateByType) {
+    // Include reset rules in the base file if not using separate per type structure
+    // Theme files never get them: `--color-*: initial` is only valid inside @theme
+    if (!themePath && exportConfiguration.fileStructure !== FileStructure.SeparateByType) {
         cssVariables += generateResetRules(selector)
     }
     // Prepend OKLCH utility variables
     cssVariables += oklchUtilityVariables
     cssVariables += generateCSSVariables(processedTokens, mappedTokens, tokenGroups, colorTokensNeedingOklch)
 
-    // Check if any tokens use references and if references are enabled
-    const hasReferences = exportConfiguration.useReferences && processedTokens.some(token => 
-        // @ts-ignore
-        token.value.referencedTokenId && token.value.referencedTokenId !== null && token.value.referencedTokenId !== undefined
-    )
-
-    // Add inline flag for @theme if it's the base selector and there are references
-    const themeDirective = selector === '@theme' && hasReferences ? '@theme inline' : selector
-    content += `${themeDirective} {\n${cssVariables}}\n`
+    content += `${blockDirective(selector, processedTokens)} {\n${cssVariables}}\n`
 
     // Add typography classes
     content += generateTypographyContent(processedTokens, tokenGroups)
@@ -382,14 +409,7 @@ export function generateStyleFiles(tokens: Array<Token>, tokenGroups: Array<Toke
         ? exportConfiguration.themeSelector.replace('{theme}', themePath)
         : exportConfiguration.cssSelector
 
-    // Check if any tokens use references and if references are enabled
-    const hasReferences = exportConfiguration.useReferences && processedTokens.some(token => 
-        // @ts-ignore
-        token.value.referencedTokenId && token.value.referencedTokenId !== null && token.value.referencedTokenId !== undefined
-    )
-
-    // Add inline flag for @theme if it's the base selector and there are references
-    const themeDirective = selector === '@theme' && hasReferences ? '@theme inline' : selector
+    const themeDirective = blockDirective(selector, processedTokens)
 
     // Generate a file for each token type
     return Array.from(tokensByType.entries()).map(([type, tokensOfType]) => {
@@ -399,12 +419,7 @@ export function generateStyleFiles(tokens: Array<Token>, tokenGroups: Array<Toke
         }
 
         // Start with Tailwind import with prefix if configured, but only for base file
-        let content = ''
-        if (!themePath) {
-            content = exportConfiguration.globalPrefix 
-                ? `@import "tailwindcss" prefix(${exportConfiguration.globalPrefix});\n\n`
-                : '@import "tailwindcss";\n\n'
-        }
+        let content = tailwindImportLine(themePath)
 
         // Add debug information
         content += generateDebugInfo(themePath, tokensOfType.length, [], type)

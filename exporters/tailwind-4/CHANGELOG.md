@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.0] - 2026-10-16
+
+### Added
+- `includeTailwindImport` (default on): turn off to export a tokens-only `tailwind.css`
+  without `@import "tailwindcss"`.
+- `themeDirective` (default `inline`): write `@theme` or `@theme static` instead of
+  `@theme inline` when tokens reference other tokens, so theme files can override
+  referenced tokens and dark mode keeps working with references enabled.
+- `groupPrefixOverrides`: choose the Tailwind namespace by token group path instead of
+  token type, e.g. `{ "breakpoint": "breakpoint", "container": "container", "perspective": "perspective" }`.
+
+### Fixed
+- Font family stacks (values containing commas or quotes) are no longer wrapped in an extra
+  pair of quotes, which made `--font-sans`, `--font-mono` and `--font-serif` invalid.
+- A token name with a leading minus (`-px`) is exported as `neg-px` instead of colliding with `px`.
+- Repeated numbers in a token name are no longer treated as duplicates: `5_5` is exported as
+  `5-5` instead of colliding with `5` (fix in the shared `NamingHelper`).
+- Theme files no longer contain reset rules such as `--color-*: initial;`, which are only
+  valid inside `@theme`.
+
 ## [1.3.0] - 2026-08-10
 
 ### Changed

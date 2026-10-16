@@ -142,6 +142,10 @@ export class NamingHelper {
       
       // Remove duplicates from normalized fragments
       const uniqueFragments = normalizedFragments.filter((fragment, index) => {
+        // Keep numbers, since repeated digits are part of a value (e.g. "5_5" is 5.5, not a duplicate "5")
+        if (/^\d+$/.test(fragment)) {
+          return true
+        }
         // Keep if it's first element or different from previous
         return index === 0 || fragment !== normalizedFragments[index - 1]
       })
