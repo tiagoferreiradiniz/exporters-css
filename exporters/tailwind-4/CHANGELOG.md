@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.1] - 2026-10-30
+
+### Fixed
+- Gradient colour stops are now written as plain `var()` references (or a `color-mix()` when the stop
+  carries opacity) instead of `oklch(var(--x) / 1)`. The colour variables hold full `oklch(...)`
+  values, so the old wrapper produced an invalid nested `oklch()`. The gradient is now rendered
+  directly, with the angle derived from the Figma from/to points.
+
 ## [1.9.0] - 2026-10-30
 
 ### Added
