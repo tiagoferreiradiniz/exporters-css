@@ -398,11 +398,11 @@ export function styleOutputFile(tokens: Array<Token>, tokenGroups: Array<TokenGr
  * @param theme - Theme object (if applicable)
  * @returns OutputTextFile object or null if there are no component tokens
  */
-export function componentOutputFile(tokens: Array<Token>, tokenGroups: Array<TokenGroup>, themePath: string = '', theme?: TokenTheme): OutputTextFile | null {
+export function componentOutputFile(tokens: Array<Token>, tokenGroups: Array<TokenGroup>, themePath: string = '', theme?: TokenTheme, extraBlocks: string = ''): OutputTextFile | null {
     const mappedTokens = new Map(tokens.map((token) => [token.id, token]))
 
     const componentTokens = processTokens(tokens, themePath, theme).filter(token => isComponentToken(token))
-    if (componentTokens.length === 0) {
+    if (componentTokens.length === 0 && !(extraBlocks && !themePath)) {
         return null
     }
 
@@ -418,6 +418,11 @@ export function componentOutputFile(tokens: Array<Token>, tokenGroups: Array<Tok
 
     let content = `${selector} {\n${cssVariables}\n}\n`
 
+    // Extra collection modes (e.g. [data-level="1"]) only belong on the base components.css
+    if (extraBlocks && !themePath) {
+        content += `\n${extraBlocks}\n`
+    }
+
     if (exportConfiguration.showGeneratedFileDisclaimer) {
         content = GeneralHelper.addDisclaimer(exportConfiguration.disclaimer, content)
     }
@@ -427,6 +432,36 @@ export function componentOutputFile(tokens: Array<Token>, tokenGroups: Array<Tok
         fileName: themePath ? `components.${themePath}.css` : "components.css",
         content: content,
     })
+}
+
+/**
+ * Renders the extra-mode attribute blocks for mode-attribute collections (e.g. level, density).
+ *
+ * The first mode of such a collection is the base value (written in :root by componentOutputFile);
+ * every other mode becomes one `[data-<collection>="<mode>"]` block overriding just that
+ * collection's tokens. The blocks are appended to the base components.css.
+ *
+ * @param sets - One entry per extra mode: its attribute, mode value, the tokens to emit, and the
+ *   full themed token set for reference resolution
+ * @param tokenGroups - Array of token groups
+ * @returns The CSS text for all blocks, or an empty string when there is nothing to emit
+ */
+export function componentModeBlocks(
+    sets: Array<{ attribute: string; value: string; emit: Array<Token>; all: Array<Token> }>,
+    tokenGroups: Array<TokenGroup>
+): string {
+    const blocks: Array<string> = []
+    for (const set of sets) {
+        const mappedTokens = new Map(set.all.map((token) => [token.id, token]))
+        const cssVariables = set.emit
+            .map((token) => convertedToken(token, mappedTokens, tokenGroups, undefined, true))
+            .filter((declaration): declaration is string => declaration !== null)
+            .join("\n")
+        if (cssVariables) {
+            blocks.push(`[${set.attribute}="${set.value}"] {\n${cssVariables}\n}`)
+        }
+    }
+    return blocks.join("\n")
 }
 
 /**

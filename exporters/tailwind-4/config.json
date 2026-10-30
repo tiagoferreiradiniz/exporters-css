@@ -643,6 +643,14 @@
         "category": "CSS selectors"
     },
     {
+        "key": "modeAttributeCollections",
+        "type": "array",
+        "default": ["level", "density"],
+        "title": "Mode attribute collections",
+        "description": "Figma collections, by name, whose extra modes are written to components.css as [data-<collection>=\"<mode>\"] blocks. The first mode is the base value in :root; each other mode becomes one attribute block. e.g. 'level' -> [data-level=\"1\"], 'density' -> [data-density=\"sm\"].",
+        "category": "CSS selectors"
+    },
+    {
         "key": "validateCobaltRules",
         "type": "boolean",
         "default": false,

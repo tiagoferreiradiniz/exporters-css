@@ -170,11 +170,42 @@ export function isInExcludedCollection(token: Token): boolean {
  * @returns True when the token's "Collection" property is in `componentCollections`
  */
 export function isComponentToken(token: Token): boolean {
+  // Mode-attribute collections (e.g. level, density) are component tokens too, so their
+  // first-mode (base) values are written to components.css with the component layer
+  if (modeAttributeCollectionOf(token) !== null) return true
+
   const components = (exportConfiguration.componentCollections || []).map((c) => c.trim().toLowerCase())
   if (components.length === 0) return false
 
   const collection = tokenPropertyValue(token, "Collection")
   return collection !== null && components.includes(collection.toLowerCase())
+}
+
+/**
+ * Returns a token's source Figma collection name, or null when it has no "Collection" property.
+ *
+ * @param token - The token to read
+ * @returns The collection name, e.g. "level", or null
+ */
+export function collectionName(token: Token): string | null {
+  return tokenPropertyValue(token, "Collection")
+}
+
+/**
+ * Returns the mode-attribute collection a token belongs to, or null.
+ *
+ * A collection listed in `modeAttributeCollections` (e.g. "level", "density") has extra
+ * modes that become `[data-<collection>="<mode>"]` blocks; its first mode is the base value.
+ *
+ * @param token - The token to check
+ * @returns The matching collection name (verbatim), or null
+ */
+export function modeAttributeCollectionOf(token: Token): string | null {
+  const wanted = (exportConfiguration.modeAttributeCollections || []).map((c) => c.trim().toLowerCase())
+  if (wanted.length === 0) return null
+
+  const collection = collectionName(token)
+  return collection !== null && wanted.includes(collection.toLowerCase()) ? collection : null
 }
 
 /**
