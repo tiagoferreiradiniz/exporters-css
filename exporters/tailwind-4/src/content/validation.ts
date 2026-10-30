@@ -1,7 +1,7 @@
 import { Token } from "@supernovaio/sdk-exporters"
 import { exportConfiguration } from ".."
 import { RAW_COMPONENT_PROPERTIES } from "../constants/defaults"
-import { codeSyntaxName, describeToken, isComponentToken } from "./code-syntax"
+import { codeSyntaxName, describeToken, isComponentToken, modeAttributeCollectionOf } from "./code-syntax"
 
 const MAX_LISTED = 50
 
@@ -48,7 +48,9 @@ export function validateCobaltRules(tokens: Array<Token>, allTokens: Map<string,
     const name = codeSyntaxName(token)
     if (!name) continue
 
-    if (isComponentToken(token) && hasRawValue(token) && !rawPropertyPattern.test(name)) {
+    // Mode-attribute collections (e.g. level, density) are per-mode raw dimensions by design,
+    // so they are exempt from the raw-value rule
+    if (isComponentToken(token) && modeAttributeCollectionOf(token) === null && hasRawValue(token) && !rawPropertyPattern.test(name)) {
       problems.push(`${describeToken(token)}: raw value, but ${name} is not a property allowed to be raw. Alias a token in Figma.`)
     }
 
