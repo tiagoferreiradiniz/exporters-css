@@ -618,9 +618,9 @@
     {
         "key": "codeSyntaxProperty",
         "type": "string",
-        "default": "Web",
+        "default": "Syntax: Web",
         "title": "Code syntax property",
-        "description": "Name of the custom property that holds the WEB code syntax imported from Figma.",
+        "description": "Name of the custom property that holds the WEB code syntax imported from Figma. A leading 'Syntax:' is optional, so 'Web' also matches 'Syntax: Web'.",
         "category": "CSS selectors",
         "dependsOn": {
             "useCodeSyntaxNames": true
