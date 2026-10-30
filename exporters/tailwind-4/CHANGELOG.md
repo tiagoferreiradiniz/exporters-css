@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.2] - 2026-10-30
+
+### Fixed
+- `excludedCollections` now works: the `Collection` property is a select, so its option id
+  is resolved to the collection name before matching.
+- Missing code syntax is reported for all tokens in one error (first 50, with collection),
+  instead of failing on the first one.
+- Tokens from Figma styles (typography, shadow, gradient, blur) have no code syntax and keep
+  their derived name instead of failing the export.
+
 ## [1.5.1] - 2026-10-30
 
 ### Fixed

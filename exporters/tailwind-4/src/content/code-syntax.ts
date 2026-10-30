@@ -1,4 +1,4 @@
-import { Token } from "@supernovaio/sdk-exporters"
+import { Token, TokenType } from "@supernovaio/sdk-exporters"
 import { exportConfiguration } from ".."
 
 /**
@@ -21,9 +21,17 @@ export function tokenPropertyValue(token: Token, propertyName: string): string |
   const value = values[property.codeName] ?? values[property.id] ?? values[property.idInVersion]
   if (value === undefined || value === null || typeof value === "boolean") return null
 
-  const text = String(value).trim()
+  // Select properties, like "Collection", store the chosen option's id rather than its name
+  const option = (property.options || []).find((o) => o.id === value)
+  const text = (option ? option.name : String(value)).trim()
   return text.length > 0 ? text : null
 }
+
+/**
+ * Token types that come from Figma styles rather than variables. Styles have no code
+ * syntax, so these keep a name derived from their path.
+ */
+const STYLE_TOKEN_TYPES: Array<TokenType> = [TokenType.typography, TokenType.shadow, TokenType.gradient, TokenType.blur]
 
 /**
  * Normalizes a property name for comparison: "Syntax: Web" -> "web".
@@ -62,25 +70,62 @@ function normalizeCodeSyntax(codeSyntax: string): string {
 }
 
 /**
+ * Formats a token for error messages: its path, plus its collection when known.
+ *
+ * @param token - The token to describe
+ * @returns e.g. `card/base/all/container/gap (Component-Tailwind)`
+ */
+function describeToken(token: Token): string {
+  const path = [...(token.tokenPath || []), token.name].join("/")
+  const collection = tokenPropertyValue(token, "Collection")
+  return collection ? `${path} (${collection})` : path
+}
+
+/**
+ * Decides whether a token must carry a WEB code syntax when naming by code syntax.
+ *
+ * @param token - The token to check
+ * @returns True for tokens from Figma variables; style-based tokens are exempt
+ */
+function requiresCodeSyntax(token: Token): boolean {
+  return exportConfiguration.useCodeSyntaxNames && !STYLE_TOKEN_TYPES.includes(token.tokenType)
+}
+
+/**
+ * Fails the export when any token that needs a WEB code syntax has none, listing all of
+ * them at once so they can be fixed in Figma in a single pass.
+ *
+ * @param tokens - The tokens about to be exported
+ */
+export function validateCodeSyntax(tokens: Array<Token>): void {
+  const missing = tokens.filter((t) => requiresCodeSyntax(t) && !tokenPropertyValue(t, exportConfiguration.codeSyntaxProperty))
+  if (missing.length === 0) return
+
+  const shown = 50
+  const list = missing.slice(0, shown).map((t) => `  - ${describeToken(t)}`).join("\n")
+  const more = missing.length > shown ? `\n  … and ${missing.length - shown} more` : ""
+  throw new Error(
+    `${missing.length} token(s) have no "${exportConfiguration.codeSyntaxProperty}" code syntax. ` +
+      `Set their WEB code syntax in Figma, or exclude their collection. ` +
+      `Properties found on the first one: ${availablePropertyNames(missing[0])}.\n${list}${more}`
+  )
+}
+
+/**
  * Returns the token's WEB code syntax as a bare variable name, verbatim from Figma.
  *
- * Fails the export when naming by code syntax is enabled and the token has none, since a
- * name derived from the path would silently diverge from what engineers see in Dev Mode.
+ * Tokens from Figma styles have no code syntax and keep their derived name. For the rest,
+ * `validateCodeSyntax` has already failed the export if any were missing.
  *
  * @param token - The token to name
- * @returns The full variable name, e.g. "cb-color-surface-brand", or null when disabled
+ * @returns The full variable name, e.g. "cb-color-surface-brand", or null to use the derived name
  */
 export function codeSyntaxName(token: Token): string | null {
-  if (!exportConfiguration.useCodeSyntaxNames) return null
+  if (!requiresCodeSyntax(token)) return null
 
   const codeSyntax = tokenPropertyValue(token, exportConfiguration.codeSyntaxProperty)
   if (!codeSyntax) {
-    const path = [...(token.tokenPath || []), token.name].join("/")
-    throw new Error(
-      `Token "${path}" has no "${exportConfiguration.codeSyntaxProperty}" code syntax. ` +
-        `Set its WEB code syntax in Figma, check the property name, or exclude its collection ` +
-        `("${tokenPropertyValue(token, "Collection") ?? "unknown"}"). Properties found: ${availablePropertyNames(token)}.`
-    )
+    throw new Error(`Token ${describeToken(token)} has no "${exportConfiguration.codeSyntaxProperty}" code syntax.`)
   }
 
   return normalizeCodeSyntax(codeSyntax)
