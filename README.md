@@ -16,6 +16,13 @@ Here are a few resources to help you get started:
 - Learn by example by exploring the exporters [we've built for you](./exporters)
 - Join our [Slack community](https://community.supernova.io/) to discuss any topics with the Supernova team and other developers
 
+## Cobalt token export (TeamViewer)
+
+The **[Tailwind CSS 4 exporter](./exporters/tailwind-4)** is configured to export TeamViewer's Cobalt design tokens. It names tokens by their Figma WEB code syntax (`--cb-*`), writes component tokens to a separate `components.css`, and validates the output against the Cobalt token rules.
+
+- **[Handoff guide](./exporters/tailwind-4/HANDOFF.md)** — recommended Supernova settings, the files produced, and the build-failure rules.
+- **[Exporter README](./exporters/tailwind-4/README.md#cobalt-token-export)** — full configuration reference.
+
 ## Help Us Build a Better Product
 
 If you have:
