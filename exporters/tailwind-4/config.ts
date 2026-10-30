@@ -106,6 +106,8 @@ export type ExporterConfiguration = {
   excludedCollections: Array<string>
   /** Figma collections whose tokens are written to components.css as plain custom properties, outside @theme */
   componentCollections: Array<string>
+  /** When enabled, fails the export on Cobalt token rules: raw component values, palette aliases outside Semantic, alias cycles */
+  validateCobaltRules: boolean
   /** When enabled, uses specific prefixes for different color utilities */
   useColorUtilityPrefixes: boolean
   /** Configuration for color utility prefixes and their patterns */

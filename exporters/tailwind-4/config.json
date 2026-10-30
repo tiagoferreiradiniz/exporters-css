@@ -643,6 +643,14 @@
         "category": "CSS selectors"
     },
     {
+        "key": "validateCobaltRules",
+        "type": "boolean",
+        "default": false,
+        "title": "Validate Cobalt rules",
+        "description": "Fails the export, listing every problem, when a component token has a raw value its property does not allow, a token other than a Semantic colour aliases the palette (ref-), or aliases form a cycle.",
+        "category": "CSS selectors"
+    },
+    {
         "key": "findReplace",
         "type": "object",
         "title": "Find and replace",

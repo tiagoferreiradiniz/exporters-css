@@ -11,6 +11,7 @@ import { ThemeHelper, WriteTokenPropStore } from "@supernovaio/export-utils"
 import { tokenVariableName, isAllowedTokenType } from "./content/token"
 import { variableToTailwindClassName } from "./utils/tailwind-class"
 import { isInExcludedCollection, validateCodeSyntax, inlineExcludedReferences, validateReferences } from "./content/code-syntax"
+import { validateCobaltRules } from "./content/validation"
 
 /** Exporter configuration from the resolved default configuration and user overrides */
 export const exportConfiguration = Pulsar.exportConfig<ExporterConfiguration>()
@@ -96,6 +97,7 @@ Pulsar.export(async (sdk: Supernova, context: PulsarContext): Promise<Array<AnyO
 
   // Report every token without a WEB code syntax at once, before any naming happens
   validateCodeSyntax(tokens)
+  validateCobaltRules(tokens, new Map(tokens.map((token) => [token.id, token])))
 
   // Write back generated Tailwind classnames and CSS variable names to token properties
   // This allows designers to see the generated names directly in their design system
@@ -146,6 +148,7 @@ Pulsar.export(async (sdk: Supernova, context: PulsarContext): Promise<Array<AnyO
     const overrides = themesToApply.flatMap((theme) => theme.overriddenTokens)
     inlineExcludedReferences(overrides, excludedIds)
     validateReferences(overrides, new Set(tokens.map((token) => token.id)))
+    validateCobaltRules(overrides, new Map(tokens.map((token) => [token.id, token])))
     
     // Handle different theme export modes
     switch (exportConfiguration.exportThemesAs) {
