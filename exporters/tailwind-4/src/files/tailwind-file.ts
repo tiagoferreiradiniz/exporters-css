@@ -683,6 +683,13 @@ export function indexOutputFile(tokens: Array<Token>, themes: Array<TokenTheme |
         }
     })
 
+    // Import the component token file (components.css) if component tokens are exported. It is
+    // imported after the theme files because its tokens reference them; custom property resolution
+    // is order-independent, but this keeps base -> themes -> components readable.
+    if (exportConfiguration.exportBaseValues && tokens.some((token) => isComponentToken(token))) {
+        content += `@import "./components.css";\n`
+    }
+
     // Add disclaimer if enabled
     if (exportConfiguration.showGeneratedFileDisclaimer) {
         content = GeneralHelper.addDisclaimer(exportConfiguration.disclaimer, content)
@@ -694,4 +701,4 @@ export function indexOutputFile(tokens: Array<Token>, themes: Array<TokenTheme |
         fileName: exportConfiguration.indexFileName || "index.css",
         content: content,
     })
-} 
+}
