@@ -163,6 +163,38 @@ export function isInExcludedCollection(token: Token): boolean {
 }
 
 /**
+ * Decides whether a token belongs to a component collection. Component tokens are not
+ * Tailwind theme tokens, so they are written to their own file as plain custom properties.
+ *
+ * @param token - The token to check
+ * @returns True when the token's "Collection" property is in `componentCollections`
+ */
+export function isComponentToken(token: Token): boolean {
+  const components = (exportConfiguration.componentCollections || []).map((c) => c.trim().toLowerCase())
+  if (components.length === 0) return false
+
+  const collection = tokenPropertyValue(token, "Collection")
+  return collection !== null && components.includes(collection.toLowerCase())
+}
+
+/**
+ * Gets the name a token's variable has in the browser, prefix included. Theme tokens
+ * are written without the prefix and get it from Tailwind's `prefix()`; anything outside
+ * `@theme` has to use this name instead.
+ *
+ * @param token - The token to name
+ * @param themeName - The token's name as written inside `@theme`
+ * @returns The full variable name, e.g. "cb-spacing-1"
+ */
+export function runtimeVariableName(token: Token, themeName: string): string {
+  const codeSyntax = codeSyntaxName(token)
+  if (codeSyntax) return codeSyntax
+
+  const prefix = exportConfiguration.globalPrefix?.trim()
+  return prefix ? `${prefix}-${themeName}` : themeName
+}
+
+/**
  * Clears references to excluded tokens, anywhere in a token's value, so the token is
  * exported with its resolved value instead of a var() pointing at a token that is not output.
  *

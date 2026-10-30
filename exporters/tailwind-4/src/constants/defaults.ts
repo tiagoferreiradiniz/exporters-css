@@ -72,6 +72,12 @@ export const DEFAULT_TOKEN_PATH_UNITS: Record<string, UnitTreatment> = {
 }
 
 /**
+ * Tailwind namespaces whose values never carry a unit, matched against a token's
+ * code syntax name when its path matches no `tokenPathUnits` rule.
+ */
+export const UNITLESS_NAMESPACES: Array<string> = ["font-weight-"]
+
+/**
  * Variable namespace overrides resolved by token path, keyed by a path prefix.
  *
  * Without an override the namespace comes from `TAILWIND_TOKEN_PREFIXES`, which

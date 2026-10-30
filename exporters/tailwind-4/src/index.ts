@@ -6,7 +6,7 @@
 
 import { Supernova, PulsarContext, RemoteVersionIdentifier, AnyOutputFile, TokenType, Token, TokenGroup, TokenTheme, OutputTextFile } from "@supernovaio/sdk-exporters"
 import { ExporterConfiguration, ThemeExportStyle, FileStructure } from "../config"
-import { styleOutputFile, generateStyleFiles, indexOutputFile, resetOutputFile } from "./files/tailwind-file"
+import { styleOutputFile, generateStyleFiles, indexOutputFile, resetOutputFile, componentOutputFile } from "./files/tailwind-file"
 import { ThemeHelper, WriteTokenPropStore } from "@supernovaio/export-utils"
 import { tokenVariableName, isAllowedTokenType } from "./content/token"
 import { variableToTailwindClassName } from "./utils/tailwind-class"
@@ -155,13 +155,15 @@ Pulsar.export(async (sdk: Supernova, context: PulsarContext): Promise<Array<AnyO
         if (exportConfiguration.fileStructure === FileStructure.SingleFile) {
           return processOutputFiles([
             styleOutputFile(tokens, tokenGroups),
+            componentOutputFile(tokens, tokenGroups),
             indexOutputFile(tokens)
           ])
         } else {
           const styleFiles = generateStyleFiles(tokens, tokenGroups)
+          const componentFile = componentOutputFile(tokens, tokenGroups)
           const resetFile = resetOutputFile()
           const indexFile = indexOutputFile(tokens)
-          return [...styleFiles, ...(resetFile ? [resetFile] : []), ...(indexFile ? [indexFile] : [])]
+          return [...styleFiles, ...(componentFile ? [componentFile] : []), ...(resetFile ? [resetFile] : []), ...(indexFile ? [indexFile] : [])]
         }
 
       case ThemeExportStyle.SeparateFiles:
@@ -183,6 +185,8 @@ Pulsar.export(async (sdk: Supernova, context: PulsarContext): Promise<Array<AnyO
             const baseFiles = generateStyleFiles(tokens, tokenGroups)
             outputFiles = [...outputFiles, ...baseFiles]
           }
+          const baseComponentFile = componentOutputFile(tokens, tokenGroups)
+          if (baseComponentFile) outputFiles.push(baseComponentFile)
         }
         
         // Generate theme files
@@ -205,6 +209,13 @@ Pulsar.export(async (sdk: Supernova, context: PulsarContext): Promise<Array<AnyO
             )
             outputFiles = [...outputFiles, ...themeFiles]
           }
+          const themeComponentFile = componentOutputFile(
+            themedTokens,
+            tokenGroups,
+            ThemeHelper.getThemeIdentifier(theme),
+            theme
+          )
+          if (themeComponentFile) outputFiles.push(themeComponentFile)
         })
         
         // Add index file
@@ -232,6 +243,8 @@ Pulsar.export(async (sdk: Supernova, context: PulsarContext): Promise<Array<AnyO
             const baseFiles = generateStyleFiles(tokens, tokenGroups)
             mergedOutputFiles = [...mergedOutputFiles, ...baseFiles]
           }
+          const baseComponentFile = componentOutputFile(tokens, tokenGroups)
+          if (baseComponentFile) mergedOutputFiles.push(baseComponentFile)
         }
         
         // Generate merged theme file
@@ -253,6 +266,8 @@ Pulsar.export(async (sdk: Supernova, context: PulsarContext): Promise<Array<AnyO
           )
           mergedOutputFiles = [...mergedOutputFiles, ...mergedThemeFiles]
         }
+        const mergedComponentFile = componentOutputFile(themedTokens, tokenGroups, 'themed', themesToApply[0])
+        if (mergedComponentFile) mergedOutputFiles.push(mergedComponentFile)
         
         // Add index file
         const mergedIndexFile = indexOutputFile(tokens, ['themed'])
@@ -266,15 +281,17 @@ Pulsar.export(async (sdk: Supernova, context: PulsarContext): Promise<Array<AnyO
   if (exportConfiguration.fileStructure === FileStructure.SingleFile) {
     return processOutputFiles([
         exportConfiguration.exportBaseValues ? styleOutputFile(tokens, tokenGroups) : null,
+        exportConfiguration.exportBaseValues ? componentOutputFile(tokens, tokenGroups) : null,
         indexOutputFile(tokens)
     ])
   } else {
     const styleFiles = exportConfiguration.exportBaseValues 
     ? generateStyleFiles(tokens, tokenGroups) 
     : []
+    const componentFile = exportConfiguration.exportBaseValues ? componentOutputFile(tokens, tokenGroups) : null
     const resetFile = exportConfiguration.fileStructure === FileStructure.SeparateByType && shouldDisableDefaultTailwindConfiguration() ? resetOutputFile() : null
     const indexFile = indexOutputFile(tokens)
-    return [...styleFiles, ...(resetFile ? [resetFile] : []), ...(indexFile ? [indexFile] : [])]
+    return [...styleFiles, ...(componentFile ? [componentFile] : []), ...(resetFile ? [resetFile] : []), ...(indexFile ? [indexFile] : [])]
   }
 })
 

@@ -10,6 +10,7 @@ import { FileStructure, ThemeDirective } from "../../config"
 import { convertedToken, isAllowedTokenType, analyzeTokensForOklchUtilities, generateOklchUtilityVariable } from "../content/token"
 import { generateTypographyClass } from "../content/typography"
 import { DEFAULT_CONFIG_FILE_NAMES } from "../constants/defaults"
+import { isComponentToken } from "../content/code-syntax"
 
 /**
  * Processes tokens based on theme settings and filters
@@ -38,6 +39,19 @@ function processTokens(tokens: Array<Token>, themePath: string = '', theme?: Tok
     // Filter out tokens not allowed for Tailwind customization
     processedTokens = processedTokens.filter(token => isAllowedTokenType(token.tokenType))
     return processedTokens
+}
+
+/**
+ * Processes tokens for the Tailwind theme files, leaving out component tokens,
+ * which are written to their own file by `componentOutputFile`
+ *
+ * @param tokens - Array of tokens to process
+ * @param themePath - Path of the theme (if applicable)
+ * @param theme - Theme object (if applicable)
+ * @returns Filtered array of tokens
+ */
+function processThemeTokens(tokens: Array<Token>, themePath: string = '', theme?: TokenTheme): Array<Token> {
+    return processTokens(tokens, themePath, theme).filter(token => !isComponentToken(token))
 }
 
 /**
@@ -305,7 +319,7 @@ export function styleOutputFile(tokens: Array<Token>, tokenGroups: Array<TokenGr
     const mappedTokens = new Map(tokens.map((token) => [token.id, token]))
 
     // Process tokens to get only themed ones if needed
-    const processedTokens = processTokens(tokens, themePath, theme)
+    const processedTokens = processThemeTokens(tokens, themePath, theme)
     if (processedTokens.length === 0) {
         return null
     }
@@ -374,6 +388,47 @@ export function styleOutputFile(tokens: Array<Token>, tokenGroups: Array<TokenGr
 }
 
 /**
+ * Generates the component token file. Component tokens are not Tailwind theme tokens,
+ * so they are written as plain custom properties under their full names, prefix included,
+ * and reference other tokens by those full names too.
+ *
+ * @param tokens - Array of tokens to process
+ * @param tokenGroups - Array of token groups
+ * @param themePath - Path of the theme (if applicable)
+ * @param theme - Theme object (if applicable)
+ * @returns OutputTextFile object or null if there are no component tokens
+ */
+export function componentOutputFile(tokens: Array<Token>, tokenGroups: Array<TokenGroup>, themePath: string = '', theme?: TokenTheme): OutputTextFile | null {
+    const mappedTokens = new Map(tokens.map((token) => [token.id, token]))
+
+    const componentTokens = processTokens(tokens, themePath, theme).filter(token => isComponentToken(token))
+    if (componentTokens.length === 0) {
+        return null
+    }
+
+    const selector = themePath && theme
+        ? exportConfiguration.themeSelector.replace('{theme}', themePath)
+        : exportConfiguration.cssSelector
+
+    const cssVariables = componentTokens
+        .map((token) => convertedToken(token, mappedTokens, tokenGroups, undefined, true))
+        .filter((declaration): declaration is string => declaration !== null)
+        .join("\n")
+
+    let content = `${selector} {\n${cssVariables}\n}\n`
+
+    if (exportConfiguration.showGeneratedFileDisclaimer) {
+        content = GeneralHelper.addDisclaimer(exportConfiguration.disclaimer, content)
+    }
+
+    return FileHelper.createTextFile({
+        relativePath: "./",
+        fileName: themePath ? `components.${themePath}.css` : "components.css",
+        content: content,
+    })
+}
+
+/**
  * Generates separate CSS output files for each token type in Tailwind format
  * This function creates separate CSS files for each token type when using SeparateByType structure
  * 
@@ -389,7 +444,7 @@ export function generateStyleFiles(tokens: Array<Token>, tokenGroups: Array<Toke
     const mappedTokens = new Map(tokens.map((token) => [token.id, token]))
 
     // Process tokens to get only themed ones if needed
-    const processedTokens = processTokens(tokens, themePath, theme)
+    const processedTokens = processThemeTokens(tokens, themePath, theme)
     if (processedTokens.length === 0) {
         return []
     }
