@@ -608,6 +608,33 @@
         }
     },
     {
+        "key": "useCodeSyntaxNames",
+        "type": "boolean",
+        "default": false,
+        "title": "Name tokens by code syntax",
+        "description": "Name each token by its WEB code syntax from Figma, verbatim, instead of deriving a name from its path. A token without code syntax fails the export. When 'Global prefix' is set, it is removed from the name inside @theme, since Tailwind's prefix() adds it back.",
+        "category": "CSS selectors"
+    },
+    {
+        "key": "codeSyntaxProperty",
+        "type": "string",
+        "default": "Web",
+        "title": "Code syntax property",
+        "description": "Name of the custom property that holds the WEB code syntax imported from Figma.",
+        "category": "CSS selectors",
+        "dependsOn": {
+            "useCodeSyntaxNames": true
+        }
+    },
+    {
+        "key": "excludedCollections",
+        "type": "array",
+        "default": [],
+        "title": "Excluded collections",
+        "description": "Figma collections, by name, whose tokens are left out of the export (matched against the token's 'Collection' property), e.g. 'Dimension'.",
+        "category": "CSS selectors"
+    },
+    {
         "key": "findReplace",
         "type": "object",
         "title": "Find and replace",
