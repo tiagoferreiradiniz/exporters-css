@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.11.0] - 2026-10-30
+
+### Added
+- The generated `index.css` now also imports `components.css` (after the base and theme files),
+  so a single `@import "index.css"` pulls in the whole token set: base `@theme`, the `[data-theme]`
+  theme files, and the component layer. Requires "Generate index file" to be on.
+
 ## [1.10.2] - 2026-10-30
 
 ### Fixed
