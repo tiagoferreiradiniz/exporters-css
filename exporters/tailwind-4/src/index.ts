@@ -10,7 +10,7 @@ import { styleOutputFile, generateStyleFiles, indexOutputFile, resetOutputFile }
 import { ThemeHelper, WriteTokenPropStore } from "@supernovaio/export-utils"
 import { tokenVariableName, isAllowedTokenType } from "./content/token"
 import { variableToTailwindClassName } from "./utils/tailwind-class"
-import { isInExcludedCollection, validateCodeSyntax } from "./content/code-syntax"
+import { isInExcludedCollection, validateCodeSyntax, inlineExcludedReferences, validateReferences } from "./content/code-syntax"
 
 /** Exporter configuration from the resolved default configuration and user overrides */
 export const exportConfiguration = Pulsar.exportConfig<ExporterConfiguration>()
@@ -87,8 +87,12 @@ Pulsar.export(async (sdk: Supernova, context: PulsarContext): Promise<Array<AnyO
     tokenGroups = tokenGroups.filter((tokenGroup) => tokenGroup.brandId === brand.id)
   }
 
-  // Leave out Figma collections that are not part of the token set
-  tokens = tokens.filter((token) => !isInExcludedCollection(token))
+  // Leave out Figma collections that are not part of the token set, and inline the
+  // value of any alias that points into one, since its target is not output
+  const excludedIds = new Set(tokens.filter((token) => isInExcludedCollection(token)).map((token) => token.id))
+  tokens = tokens.filter((token) => !excludedIds.has(token.id))
+  inlineExcludedReferences(tokens, excludedIds)
+  validateReferences(tokens, new Set(tokens.map((token) => token.id)))
 
   // Report every token without a WEB code syntax at once, before any naming happens
   validateCodeSyntax(tokens)
@@ -137,6 +141,11 @@ Pulsar.export(async (sdk: Supernova, context: PulsarContext): Promise<Array<AnyO
       }
       return theme
     })
+
+    // Theme overrides can alias excluded or missing tokens too
+    const overrides = themesToApply.flatMap((theme) => theme.overriddenTokens)
+    inlineExcludedReferences(overrides, excludedIds)
+    validateReferences(overrides, new Set(tokens.map((token) => token.id)))
     
     // Handle different theme export modes
     switch (exportConfiguration.exportThemesAs) {
