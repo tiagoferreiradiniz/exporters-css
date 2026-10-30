@@ -1,5 +1,5 @@
 import { NamingHelper, CSSHelper, GeneralHelper, StringCase } from "@supernovaio/export-utils"
-import { Token, TokenGroup, TokenType, TypographyTokenValue, FontSizeTokenValue, LineHeightTokenValue, LetterSpacingTokenValue, FontWeightTokenValue, TypographyToken, AnyDimensionTokenValue, AnyTokenValue, AnyToken, Unit } from "@supernovaio/sdk-exporters"
+import { Token, TokenGroup, TokenType, TypographyTokenValue, FontSizeTokenValue, LineHeightTokenValue, LetterSpacingTokenValue, FontWeightTokenValue, TypographyToken, AnyDimensionTokenValue, AnyTokenValue, AnyToken, GradientTokenValue, Unit } from "@supernovaio/sdk-exporters"
 import { exportConfiguration } from ".."
 import { FindReplaceTiming } from "../../config"
 import {
@@ -321,6 +321,34 @@ function formatRatio(ratio: number): string {
 }
 
 /**
+ * Fails the build when a gradient has a colour stop that is not bound to a palette
+ * colour. The Cobalt brief requires every stop to reference a `--cb-ref-*` variable so
+ * the gradient tracks palette changes; a loose literal stop is almost always a mistake
+ * in the Figma paint style. Only enforced when references are exported.
+ *
+ * @param token - The gradient token to check
+ */
+function validateGradientStops(token: Token): void {
+  if (!exportConfiguration.useReferences) return
+  const layers = (token as { value?: unknown }).value as GradientTokenValue[] | undefined
+  if (!Array.isArray(layers)) return
+  const unbound: Array<string> = []
+  for (const layer of layers) {
+    for (const stop of layer.stops || []) {
+      const bound = stop.color?.referencedTokenId || stop.color?.color?.referencedTokenId
+      if (!bound) unbound.push(`${Math.round(stop.position * 100)}%`)
+    }
+  }
+  if (unbound.length) {
+    const path = [...(token.tokenPath || []), token.name].join("/")
+    throw new Error(
+      `Gradient "${path}" has unbound colour stop(s) at ${unbound.join(", ")}. ` +
+        `Bind each stop to a palette colour in Figma so it exports as a var() reference.`
+    )
+  }
+}
+
+/**
  * Converts a design token into its CSS custom property representation.
  * Handles formatting of the token value, references, and optional description comments.
  * 
@@ -338,6 +366,11 @@ export function convertedToken(token: Token, mappedTokens: Map<string, Token>, t
   // Special handling for typography tokens
   if (token.tokenType === TokenType.typography) {
     return handleTypographyToken(token, mappedTokens, tokenGroups)
+  }
+
+  // Gradients must have every colour stop bound to a palette colour
+  if (token.tokenType === TokenType.gradient) {
+    validateGradientStops(token)
   }
 
   // Generate the CSS variable name based on token properties and configuration

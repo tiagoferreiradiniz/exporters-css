@@ -123,7 +123,6 @@ export const REM_TYPOGRAPHY_PROPERTY_TYPES: ReadonlySet<TokenType> = new Set([
  * Unsupported token types that will be filtered out:
  * - Dimension (use size or space instead)
  * - ParagraphSpacing (not directly supported by Tailwind)
- * - Gradient (not a core Tailwind property)
  * - String (not relevant for CSS variables)
  * - ProductCopy (not relevant for CSS variables)
  * - TextCase (use Tailwind text-case utilities instead)
@@ -148,8 +147,9 @@ export const TAILWIND_ALLOWED_CUSTOMIZATION: TokenType[] = [
   TokenType.blur,
   TokenType.typography,
   TokenType.border,
-  TokenType.dimension
-] 
+  TokenType.dimension,
+  TokenType.gradient
+]
 
 
 export const DEFAULT_CONFIG_FILE_NAMES: Record<TokenType, string> = {

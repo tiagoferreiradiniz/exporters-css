@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.0] - 2026-10-30
+
+### Added
+- Gradient tokens are now exported as `--gradient-*` custom properties (`--cb-gradient-*` at runtime),
+  emitted as `linear-gradient(<angle>deg, var(<stop>) <pos>%, ...)` with each colour stop kept as a
+  `var()` reference to its palette colour.
+- The export fails, naming the gradient and the stop positions, when a gradient has a colour stop that
+  is not bound to a palette colour (only enforced when references are exported).
+
 ## [1.8.0] - 2026-10-30
 
 ### Added
