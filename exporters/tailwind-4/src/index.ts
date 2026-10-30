@@ -59,6 +59,15 @@ async function buildComponentModeBlocks(
       const emit = themed.filter((token) => (collectionName(token) || '').toLowerCase() === match.toLowerCase())
       if (emit.length === 0) return null
 
+      // Skip the base mode: its values equal the un-themed base already written in :root,
+      // so a [data-...="<base mode>"] block would only repeat it
+      const isBaseMode = emit.every((token) => {
+        const base = tokenById.get(token.id)
+        return base !== undefined &&
+          JSON.stringify((base as Token & { value: unknown }).value) === JSON.stringify((token as Token & { value: unknown }).value)
+      })
+      if (isBaseMode) return null
+
       return { attribute: `data-${match}`, value: modeAttributeValue(theme, match), emit, all: themed }
     })
     .filter((set): set is ComponentModeSet => set !== null && set.value.length > 0)
