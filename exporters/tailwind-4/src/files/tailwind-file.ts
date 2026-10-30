@@ -406,9 +406,10 @@ export function componentOutputFile(tokens: Array<Token>, tokenGroups: Array<Tok
         return null
     }
 
+    // Component tokens are plain custom properties, so they never go in an @theme block
     const selector = themePath && theme
         ? exportConfiguration.themeSelector.replace('{theme}', themePath)
-        : exportConfiguration.cssSelector
+        : exportConfiguration.cssSelector.trim().startsWith('@') ? ':root' : exportConfiguration.cssSelector
 
     const cssVariables = componentTokens
         .map((token) => convertedToken(token, mappedTokens, tokenGroups, undefined, true))

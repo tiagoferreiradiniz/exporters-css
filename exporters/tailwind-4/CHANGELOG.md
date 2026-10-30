@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.0] - 2026-10-30
+
+### Added
+- Colours with opacity whose source only appears in the description (Figma cannot alias a colour
+  and change its opacity) are exported as `color-mix()` with that source, e.g.
+  "Light: indigo/600 @ 90% · Dark: indigo/500 @ 90%" gives
+  `color-mix(in srgb, var(--ref-indigo-600) 90%, transparent)` in the light output. The entry whose
+  colour matches the value is used for each theme. Sources can be palette (`ref-*`) or semantic
+  (`color-*`) colours. The export fails, naming the token, when the description names sources but
+  none of them has the token's colour.
+
+### Fixed
+- The base `components.css` uses `:root` when the CSS selector is an at-rule such as `@theme`,
+  so component tokens stay plain custom properties.
+
 ## [1.6.0] - 2026-10-30
 
 ### Added

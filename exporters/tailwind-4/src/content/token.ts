@@ -11,7 +11,7 @@ import {
   UNITLESS_NAMESPACES,
   UnitTreatment
 } from "../constants/defaults"
-import { codeSyntaxName, stripTailwindPrefix, runtimeVariableName } from "./code-syntax"
+import { codeSyntaxName, stripTailwindPrefix, runtimeVariableName, isComponentToken } from "./code-syntax"
 import { ColorHelper } from "@supernovaio/export-utils"
 import { ColorFormat } from "@supernovaio/export-utils"
 
@@ -446,12 +446,84 @@ function colorMixValue(token: Token, mappedTokens: Map<string, Token>, variableN
   const value = token.value
   if (!value || value.referencedTokenId || value.opacity?.referencedTokenId) return undefined
 
-  const referenced = value.color?.referencedTokenId ? mappedTokens.get(value.color.referencedTokenId) : undefined
   const alpha = value.opacity?.measure
-  if (!referenced || !isAllowedTokenType(referenced.tokenType) || typeof alpha !== "number" || alpha >= 1) return undefined
+  if (typeof alpha !== "number" || alpha >= 1) return undefined
+
+  // Figma cannot alias a colour and change its opacity in one variable, so the source usually
+  // only survives in the description ("Light: indigo/600 @ 90% · Dark: indigo/500 @ 90%")
+  const referenced = value.color?.referencedTokenId
+    ? mappedTokens.get(value.color.referencedTokenId)
+    : colorSourceFromDescription(token, mappedTokens)
+  if (!referenced || !isAllowedTokenType(referenced.tokenType)) return undefined
 
   const percent = Math.round(alpha * 10000) / 100
   return `color-mix(in srgb, var(--${variableName(referenced)}) ${percent}%, transparent)`
+}
+
+/** One "<mode>: <colour> @ <n>%" entry from a colour token's description */
+type DescribedColorSource = { modes: string; name: string; percent: number }
+
+/**
+ * Reads the colour sources a description names per mode, e.g.
+ * "Light: indigo/600 @ 90% · Dark: indigo/500 @ 90%" or "Light and Dark: the shell text white @ 30%".
+ * The colour is the last word before the "@".
+ */
+function describedColorSources(description: string): Array<DescribedColorSource> {
+  const sources: Array<DescribedColorSource> = []
+  const pattern = /(light and dark|light|dark)\s*:[^·@]*?([a-z0-9][a-z0-9/-]*)\s*@\s*([\d.]+)\s*%/gi
+  let match: RegExpExecArray | null
+  while ((match = pattern.exec(description)) !== null) {
+    sources.push({ modes: match[1].toLowerCase(), name: match[2].toLowerCase(), percent: parseFloat(match[3]) })
+  }
+  return sources
+}
+
+/**
+ * Finds the colour token a description names as the source of this mode's value. A source can be a
+ * palette colour (indigo/600 → ref-indigo-600) or a semantic one (on-surface/brand → color-on-surface-brand).
+ * The description lists every mode, so the entry whose colour equals this token's colour is the one
+ * for the file being written. Fails the export when the description names sources but none matches,
+ * so a stale description cannot silently export the wrong colour.
+ *
+ * @param token - Colour token with opacity and no alias
+ * @param mappedTokens - All tokens by id, with the current theme applied
+ * @returns The source token, or undefined when the description names no source
+ */
+function colorSourceFromDescription(token: Token, mappedTokens: Map<string, Token>): Token | undefined {
+  const sources = describedColorSources(token.description ?? "")
+  if (sources.length === 0) return undefined
+
+  // @ts-ignore
+  const own = ColorHelper.normalizedIntColor(token.value)
+  // @ts-ignore
+  const alpha: number = token.value.opacity.measure
+  const candidates = Array.from(mappedTokens.values()).filter(
+    (t) => t.tokenType === TokenType.color && t.id !== token.id && !isComponentToken(t)
+  )
+
+  for (const source of sources) {
+    if (Math.abs(source.percent / 100 - alpha) > 0.005) continue
+
+    const dashed = source.name.replace(/\//g, "-")
+    const match = candidates.find((t) => {
+      const syntax = codeSyntaxName(t)
+      const path = fullTokenPath(t)
+      const named = syntax
+        ? [`ref-${dashed}`, `color-${dashed}`].includes(stripTailwindPrefix(syntax))
+        : path === source.name || path.endsWith(`/${source.name}`)
+      if (!named) return false
+      // @ts-ignore
+      const color = ColorHelper.normalizedIntColor(t.value)
+      return Math.abs(color.r - own.r) <= 1 && Math.abs(color.g - own.g) <= 1 && Math.abs(color.b - own.b) <= 1
+    })
+    if (match) return match
+  }
+
+  const named = sources.map((source) => `${source.name} @ ${source.percent}%`).join(", ")
+  throw new Error(
+    `Colour "${fullTokenPath(token)}" has opacity and its description names ${named}, but none of them has this colour. ` +
+      `Update the description or the value in Figma.`
+  )
 }
 
 /**
