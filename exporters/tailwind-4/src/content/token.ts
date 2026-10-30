@@ -350,7 +350,10 @@ export function convertedToken(token: Token, mappedTokens: Map<string, Token>, t
   if (useRuntimeNames) name = variableName(token)
 
   // Convert token value to CSS, handling references and formatting according to configuration
-  const value = colorMixValue(token, mappedTokens, variableName) ?? CSSHelper.tokenToCSS(token, mappedTokens, {
+  const value =
+    colorMixValue(token, mappedTokens, variableName) ??
+    radiusFocusValue(token, mappedTokens, variableName) ??
+    CSSHelper.tokenToCSS(token, mappedTokens, {
     allowReferences: exportConfiguration.useReferences,
     decimals: exportConfiguration.colorPrecision,
     colorFormat: exportConfiguration.colorFormat,
@@ -458,6 +461,60 @@ function colorMixValue(token: Token, mappedTokens: Map<string, Token>, variableN
 
   const percent = Math.round(alpha * 10000) / 100
   return `color-mix(in srgb, var(--${variableName(referenced)}) ${percent}%, transparent)`
+}
+
+/** Tokens by code syntax name, built once per token map */
+const tokensBySyntaxCache = new WeakMap<Map<string, Token>, Map<string, Token>>()
+
+function tokensBySyntax(mappedTokens: Map<string, Token>): Map<string, Token> {
+  let index = tokensBySyntaxCache.get(mappedTokens)
+  if (!index) {
+    index = new Map()
+    for (const t of mappedTokens.values()) {
+      const syntax = codeSyntaxName(t)
+      if (syntax) index.set(syntax, t)
+    }
+    tokensBySyntaxCache.set(mappedTokens, index)
+  }
+  return index
+}
+
+/**
+ * Converts a literal focus ring radius into the sum it stands for, so it follows the radius it
+ * wraps: `<x>-radius-focus[-size]` = `<x>-radius[-size]` (or `<x>-radius`) + `<x>-focus-offset`
+ * (or the shared `cmp-control-focus-offset`). Fails the export when the literal is not that sum.
+ *
+ * @param token - The token being converted
+ * @param mappedTokens - All tokens by id
+ * @param variableName - Names a token's variable
+ * @returns The calc() value, or undefined when the token is not a literal focus radius
+ */
+function radiusFocusValue(token: Token, mappedTokens: Map<string, Token>, variableName: (t: Token) => string): string | undefined {
+  if (!exportConfiguration.useReferences || token.tokenType === TokenType.color) return undefined
+  // @ts-ignore
+  const value = token.value
+  if (!value || value.referencedTokenId || typeof value.measure !== "number") return undefined
+
+  const name = codeSyntaxName(token)
+  const match = name?.match(/^(.*)-radius-focus(-[a-z0-9]+)?$/)
+  if (!match) return undefined
+
+  const [, base, size = ""] = match
+  const index = tokensBySyntax(mappedTokens)
+  const prefix = name!.slice(0, name!.indexOf("-") + 1)
+  const radius = index.get(`${base}-radius${size}`) ?? index.get(`${base}-radius`)
+  const offset = index.get(`${base}-focus-offset`) ?? index.get(`${prefix}cmp-control-focus-offset`)
+  if (!radius || !offset) return undefined
+
+  // @ts-ignore
+  const sum = radius.value.measure + offset.value.measure
+  if (Math.abs(sum - value.measure) > 0.01) {
+    throw new Error(
+      `Focus radius "${fullTokenPath(token)}" is ${value.measure}, but ${codeSyntaxName(radius)} + ${codeSyntaxName(offset)} is ${sum}. ` +
+        `Fix the value in Figma.`
+    )
+  }
+  return `calc(var(--${variableName(radius)}) + var(--${variableName(offset)}))`
 }
 
 /** One "<mode>: <colour> @ <n>%" entry from a colour token's description */

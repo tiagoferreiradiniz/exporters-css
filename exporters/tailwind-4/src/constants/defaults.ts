@@ -179,3 +179,19 @@ export const DEFAULT_CONFIG_FILE_NAMES: Record<TokenType, string> = {
   Visibility: "tailwind.visibility.css",
   Blur: "tailwind.blur.css"
 }
+
+/**
+ * Component properties allowed to hold a raw value instead of an alias: design-decision sizes
+ * and the derived focus ring radius. Matched against the end of the token's code syntax name,
+ * with an optional suffix such as `-sm`, `-collapsed` or `-hover`.
+ */
+export const RAW_COMPONENT_PROPERTIES: Array<string> = [
+  "width",
+  "min-width",
+  "max-width",
+  "min-height",
+  "height",
+  "size",
+  "overlap",
+  "radius-focus",
+]

@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.0] - 2026-10-30
+
+### Added
+- A literal focus ring radius (`<x>-radius-focus[-size]`) is exported as
+  `calc(var(<x>-radius[-size]) + var(<x>-focus-offset))`, falling back to `<x>-radius` and the shared
+  `cmp-control-focus-offset`, so it follows the radius it wraps. The export fails when the literal is
+  not that sum.
+- `validateCobaltRules`: fails the export, listing every problem, when a component token has a raw
+  value its property does not allow (allowed: width, min/max width, min height, height, size,
+  overlap, radius-focus, each with an optional suffix), when anything other than a Semantic colour
+  aliases the palette (`ref-`), or when aliases form a cycle.
+
 ## [1.7.0] - 2026-10-30
 
 ### Added

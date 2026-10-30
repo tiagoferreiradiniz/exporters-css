@@ -75,7 +75,7 @@ function normalizeCodeSyntax(codeSyntax: string): string {
  * @param token - The token to describe
  * @returns e.g. `card/base/all/container/gap (Component-Tailwind)`
  */
-function describeToken(token: Token): string {
+export function describeToken(token: Token): string {
   const path = [...(token.tokenPath || []), token.name].join("/")
   const collection = tokenPropertyValue(token, "Collection")
   return collection ? `${path} (${collection})` : path
