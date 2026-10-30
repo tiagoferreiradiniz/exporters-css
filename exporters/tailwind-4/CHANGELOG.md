@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.10.2] - 2026-10-30
+
+### Fixed
+- The base mode of a mode-attribute collection no longer gets its own `[data-<collection>="<mode>"]`
+  block (e.g. `[data-level="0"]`, `[data-density="md"]`). Its values are already the base in `:root`,
+  so the block only repeated them. Non-base modes are unchanged.
+
 ## [1.10.1] - 2026-10-30
 
 ### Fixed
