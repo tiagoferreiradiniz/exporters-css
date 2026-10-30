@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.10.1] - 2026-10-30
+
+### Fixed
+- Cobalt rule validation no longer flags tokens in mode-attribute collections (e.g. `level`,
+  `density`) as disallowed raw values. These collections hold per-mode raw dimensions by design
+  (e.g. `nesting/padding-start` = `4 + 12 × level`), so they are exempt from the raw-value rule.
+
 ## [1.10.0] - 2026-10-30
 
 ### Added
