@@ -1,38 +1,309 @@
-<p align="center">
-  <a aria-label="Join the community on Slack" href="https://community.supernova.io"><img alt="" src="https://img.shields.io/badge/Join%20the%20community-black.svg?style=for-the-badge&logo=Slack"></a>
-  <a aria-label="Follow Supernova on Twitter" href="https://twitter.com/supernova_io"><img alt="" src="https://img.shields.io/badge/Follow%20@supernova-black.svg?style=for-the-badge&logo=Twitter"></a>
-</p>
+![Tailwind Exporter](https://raw.githubusercontent.com/Supernova-Studio/exporters/main/exporters/tailwind/resources/header.png)
 
-[Supernova](https://supernova.io/) makes generation and delivery of production code from your design systems a breeze. In this repository, you'll find all available exporters—packages that control how code is exported to your codebase. For tutorials on working with these exporters, or even building your own, consult our [developer docs](https://developers.supernova.io).
+# Tailwind CSS Exporter
 
-![Header Image](./images/exporters.png)
+The Tailwind CSS Exporter is a powerful package for converting your design system data into a production-ready Tailwind configuration. It facilitates a seamless transition from design to development, ensuring consistency and accuracy throughout the process. The Tailwind exporter has a variety of configuration options to make sure the configuration always fits your codebase.
 
-## Getting Started
+## Exporter Features
 
-Here are a few resources to help you get started:
+This exporter package takes your design system tokens and converts them to Tailwind CSS configuration in various ways. Here are its key features:
 
-- Watch the ["Building Exporters (deep dive)" video](https://www.youtube.com/watch?v=4BvoWLPbOMo&ab_channel=Supernova) to learn how to use, create, and modify exporters so they work exactly how you need them to!
-- Read our [developer documentation](https://developers.supernova.io) for any additional details you might need
-- Learn by example by exploring the exporters [we've built for you](./exporters)
-- Join our [Slack community](https://community.supernova.io/) to discuss any topics with the Supernova team and other developers
+- **Support for all Supernova token types:** Generates Tailwind configuration from all token types, including colors, text styles, shadows, dimensions and more.
+- **Branding support:** Can generate configurations for different brands you've defined in Supernova.
+- **Theming support:** Can generate configurations for different themes you've defined in Supernova.
+- **Customizable output:** Can be configured to generate Tailwind configuration in variety of ways.
+- **Customizable formatting:** Can be configured to generate each token using various formatting options.
+- **Comment support:** Can include descriptions for each token as code comments, if provided. Can also provide a disclaimer at the top of each file to prevent people from tinkering with the generated code manually.
+- **File organization:** Can generate output in various ways, such as separate files for each token type, or a single configuration file.
+- **Reset rules:** Can generate reset rules to disable default Tailwind styles, either in a separate file or within the main CSS file.
+- **Typography classes:** Can generate typography classes in @layer components using typography tokens.
+- **Debug information:** Can include debug information in the generated files to help with troubleshooting.
 
-## Cobalt token export (TeamViewer)
+## Example of Output
 
-The **[Tailwind CSS 4 exporter](./exporters/tailwind-4)** is configured to export TeamViewer's Cobalt design tokens. It names tokens by their Figma WEB code syntax (`--cb-*`), writes component tokens to a separate `components.css`, and validates the output against the Cobalt token rules.
+Given the following design system token (meta representation for brevity):
 
-- **[Handoff guide](./exporters/tailwind-4/HANDOFF.md)** — recommended Supernova settings, the files produced, and the build-failure rules.
-- **[Exporter README](./exporters/tailwind-4/README.md#cobalt-token-export)** — full configuration reference.
+```typescript
+const tokens = [{
+    type: "color",
+    name: "red",
+    value: "#ff0000",
+    description: "The reddest of reds"
+}, {
+    type: "color",
+    name: "blue",
+    value: "#0000ff",
+}, {
+    type: "color",
+    name: "primary",
+    value: "{primary}",
+    description: "The main color used throughout the application"
+}];
+```
 
-## Help Us Build a Better Product
+With configurations:
 
-If you have:
+```json
+{
+    "showGeneratedFileDisclaimer": true,
+    "disclaimer": "This file was automatically generated. Do not modify manually.",
+    "showDescriptions": true,
+    "useReferences": true,
+    "colorFormat": "hex",
+    "indent": 2,
+    "fileStructure": "singleFile"
+}
+```
 
-- Suggestions for improving the developer experience
-- Encountered any bugs
-- Found unclear or incorrect information in the documentation
+The exporter would produce:
 
-or you'd like to contribute with your own helper please open a new [GitHub issue](https://github.com/Supernova-Studio/exporters/issues/new/choose). You can also share your thoughts through our community channels.
+```css
+/* This file was automatically generated. Do not modify manually. */
 
-## Community
+@import "tailwindcss";
 
-We have an active [Slack community](https://community.supernova.io) where both the Supernova team and your fellow developers exchange ideas and engage in discussions. Come join us to shape the future of design systems and automatic code delivery!
+:root {
+  /* The reddest of reds */
+  --color-red: #ff0000;
+  --color-blue: #0000ff;
+  /* The main color used throughout the application */
+  --color-primary: var(--color-red);
+}
+```
+
+## Configuration Options
+
+Here is a list of all the configuration options this exporter provides:
+
+### General Settings
+- **showGeneratedFileDisclaimer:** Toggle to show a disclaimer indicating the file is auto-generated.
+- **disclaimer:** Set the text of the aforementioned disclaimer.
+- **generateEmptyFiles:** Choose if files with no styles should still be generated.
+- **showDescriptions:** Display descriptions for each token as code comments.
+- **useReferences:** Use references to other tokens instead of direct values where possible.
+- **debug:** Include debug information in the generated files to help with troubleshooting.
+- **indent:** Set the number of spaces for indentation in the generated files.
+
+### File Structure
+- **fileStructure:** Controls how token styles are organized in files. Options:
+  - `singleFile`: All tokens are in a single CSS file
+  - `separateByType`: Tokens are separated into different files by type
+- **generateIndexFile:** Decide whether an aggregate index file should be created.
+- **indexFileName:** Name the generated index file.
+- **baseIndexFilePath:** Define the directory path for the index file.
+- **baseStyleFilePath:** Define the directory path for style files.
+- **generateEmptyConfigTypeFiles:** Choose if empty config type files should be generated.
+- **customizeConfigFileNames:** Enable customization of config file names.
+- **configFileNames:** Define custom names for config files by token type.
+- **cssSelector:** CSS selector where variables will be defined.
+- **themeSelector:** CSS selector pattern for themes, {theme} will be replaced with theme name.
+
+### Colors
+- **colorFormat:** Set the format in which colors are exported. Options:
+  - `smartHashHex`: Automatically choose between #RRGGBB and #RRGGBBAA
+  - `smartRgba`: Automatically choose between rgb() and rgba()
+  - `smartHsla`: Automatically choose between hsl() and hsla()
+  - `smartOklch`: Automatically choose between oklch() and oklch() with alpha
+  - `hashHex6`: HEX (6 digits), e.g., #ff0000
+  - `hashHex8`: HEX (8 digits), e.g., #ff0000ff
+  - `rgb`: RGB, e.g., rgb(255, 0, 0)
+  - `rgba`: RGBA, e.g., rgba(255, 0, 0, 1)
+  - `hsl`: HSL, e.g., hsl(0, 100%, 50%)
+  - `hsla`: HSLA, e.g., hsla(0, 100%, 50%, 1)
+  - `oklch`: OKLCH, e.g., oklch(0.6 0.15 30)
+  - `oklcha`: OKLCHA, e.g., oklch(0.6 0.15 30 / 1)
+- **colorPrecision:** Maximum number of decimals in colors.
+- **useColorUtilityPrefixes:** Enable specific prefixes for different color utilities.
+- **colorUtilityPrefixes:** Define patterns to prefix color tokens. Use commas for multiple patterns (e.g., 'background,bg') and ! to negate (e.g., 'bg,!fill').
+
+### Theme Settings
+- **exportThemesAs:** Controls how themes are exported in the CSS files. Options:
+  - `applyDirectly`: Apply themes directly to tokens
+  - `separateFiles`: Generate separate files for each theme
+  - `mergedTheme`: Generate a single merged theme file
+- **exportOnlyThemedTokens:** When enabled, themed files will only include tokens that have different values from the base theme.
+- **exportBaseValues:** When enabled, base token values will be exported along with themes.
+
+### Reset Rules
+- **disableAllDefaults:** When enabled, removes all default Tailwind utilities by adding --*: initial; to reset group.
+- **disableAnimateDefaults:** When enabled, resets all animation token values to initial state.
+- **disableBlurDefaults:** When enabled, resets all blur token values to initial state.
+- **disableBorderRadiusDefaults:** When enabled, resets all border radius token values to initial state.
+- **disableBreakpointDefaults:** When enabled, resets all breakpoint token values to initial state.
+- **disableColorDefaults:** When enabled, resets all color token values to initial state.
+- **disableContainerDefaults:** When enabled, resets all container token values to initial state.
+- **disableDropShadowDefaults:** When enabled, resets all drop shadow token values to initial state.
+- **disableFontDefaults:** When enabled, resets all font family token values to initial state.
+- **disableFontWeightDefaults:** When enabled, resets all font weight token values to initial state.
+- **disableInsetDefaults:** When enabled, resets all inset token values to initial state.
+- **disableLeadingDefaults:** When enabled, resets all line height token values to initial state.
+- **disablePerspectiveDefaults:** When enabled, resets all perspective token values to initial state.
+- **disableShadowDefaults:** When enabled, resets all shadow token values to initial state.
+- **disableSpacingDefaults:** When enabled, resets all spacing token values to initial state.
+- **disableTextDefaults:** When enabled, resets all text token values to initial state.
+- **disableTrackingDefaults:** When enabled, resets all letter spacing token values to initial state.
+
+### Typography
+- **generateTypographyClasses:** When enabled, generates typography classes in @layer components using typography tokens.
+- **forceRemUnit:** When enabled, converts **all** pixel values to rem units, overriding the per-path rules below.
+- **remBase:** Base pixel value for rem conversion (default: 16).
+- **tokenPathUnits:** Unit to emit per token path prefix (`rem`, `px` or `unitless`). See below.
+- **tokenPathPrefixes:** Tailwind namespace to emit per token path prefix. See below.
+
+### Unit and namespace handling by token path
+
+Units and namespaces are resolved from the **token path**, not the token type.
+
+This matters because a design system imported from Figma commonly types every scalar as
+a generic `Dimension`. When that happens `token.tokenType` carries no semantic signal at
+all - font sizes, radii, line heights and font weights all arrive as `Dimension` - so a
+type-based rule can only convert all of them or none of them, and every token collapses
+into the single `--spacing-*` namespace. Two settings resolve this by path:
+
+- **tokenPathUnits:** maps a path prefix to `rem`, `px` or `unitless`
+- **tokenPathPrefixes:** maps a path prefix to the Tailwind namespace to emit it under
+
+The longest matching prefix wins, so a specific path overrides a broader one. Paths that
+match nothing keep their authored value and their type-derived namespace.
+
+Defaults:
+
+| Token path | Variable | Unit |
+| --- | --- | --- |
+| `reference/spacing/*` | `--spacing-*` | `rem` |
+| `reference/font-size/*` | `--text-*` | `rem` |
+| `reference/radius/*` | `--radius-*` | `px` |
+| `reference/line-height/*` | `--leading-*` | `px` |
+| `reference/letter-spacing/*` | `--tracking-*` | `px` |
+| `reference/font-weight/*` | `--font-weight-*` | `unitless` |
+
+So `reference/font-weight/600` is emitted as `--font-weight-600: 600`, not
+`--spacing-reference-font-weight-600: 600px`. Tailwind v4's own font weight keys are
+named rather than numeric (`--font-weight-semibold`), so numeric weights are additive
+and overwrite none of them.
+
+Why these choices:
+
+- `--text-*` is rem because a hardcoded `--text-sm: 14px` ignores the reader's browser
+  font-size setting.
+- `--radius-*` stays px deliberately: rem-scaled corner radii look wrong at large text
+  sizes. This departs from the Tailwind v4 defaults, knowingly.
+- `--leading-*` and `--tracking-*` stay px because they were authored in px against
+  specific text styles. A standalone line height token carries no font size to divide
+  by, so there is nothing to form a ratio from. See below for typography tokens, which
+  do carry both.
+- `--font-weight-*` is unitless because a weight is a bare number. Figma stores it as a
+  dimension, which forces a unit onto it, and `600px` is meaningless.
+
+Values authored in non-pixel units are never converted, so durations in `ms`, unitless
+values, and percentages always pass through untouched. Enabling `forceRemUnit` converts
+every pixel value, overriding `tokenPathUnits` entirely.
+
+Both maps are exposed in `config.json`, so the mapping can be changed per pipeline
+without a rebuild. The defaults live in
+[`src/constants/defaults.ts`](./src/constants/defaults.ts).
+
+### Typography line heights
+
+Typography tokens are composites carrying a font size and a line height together, so the
+line height is emitted as a **unitless ratio** of the font size. This matches how Tailwind
+pairs the two in its own default theme:
+
+```css
+--text-sm: 0.875rem;
+--text-sm--line-height: calc(1.25 / 0.875);
+```
+
+A token authored as `14px / 20px` is emitted as:
+
+```css
+--text-ui-regular-body-text: 0.875rem;
+--text-ui-regular-body-text--line-height: 1.4286;
+```
+
+A ratio scales with the font size, so a reader raising their browser font size or applying
+a text-spacing override keeps proportional line boxes instead of fixed ones the text
+eventually overflows. Absolute line heights resist that (WCAG 1.4.12).
+
+The ratio is rounded to four decimals, which keeps the rendered line box within a
+hundredth of a pixel of the authored value at any realistic font size.
+
+The authored value is emitted instead when a ratio would be meaningless: no line height,
+no font size to pair it with, a font size of zero, or a line height and font size measured
+in different units. A line height authored as a percentage is converted directly, since a
+percentage of the font size is already a ratio.
+
+Note this is the one place a value cannot also be a reference to another token: a ratio is
+a computed number, so it cannot point at an absolute line height token with `var()`.
+
+### Token Properties
+- **writeClassnameToProperty:** When enabled, generated Tailwind classnames will be saved back to tokens as custom properties.
+- **propertyToWriteClassnameTo:** Name of the custom property where generated Tailwind classnames will be saved.
+- **writeCSSVariableNameToProperty:** When enabled, generated CSS variable names will be saved back to tokens as custom properties.
+- **propertyToWriteCSSVariableNameTo:** Name of the custom property where generated CSS variable names will be saved.
+- **propertyToWriteCSSVariableNameToIncludesVar:** When enabled, the resulting written properties will be encapsulated in var() syntax for easier copying.
+
+### Token Formatting
+- **tokenPrefixes:** Prefix each token type with a specific identifier.
+- **globalPrefix:** Prefix for Tailwind classes and CSS variables.
+- **findReplace:** Find and replace strings in token paths and names.
+- **groupPrefixOverrides:** Map a token path fragment to a Tailwind namespace, overriding the one derived from the token type. For example `{ "breakpoint": "breakpoint", "container": "container", "perspective": "perspective" }` exports tokens in a `Breakpoints` group as `--breakpoint-*` instead of `--spacing-*`. The matched path segment is dropped from the name. Only Dimension, Size and Space tokens are affected, since those all map to `--spacing-*` by type. This changes only the name: tokens still need the right type for their value (e.g. *Font weight* for font weights).
+
+### Tokens-only output
+- **includeTailwindImport:** When off, the base file doesn't start with `@import "tailwindcss"`. Use this when the consuming project already imports Tailwind.
+- **themeDirective:** Directive for the base `@theme` block when tokens reference other tokens. `inline` (default) copies referenced values into utilities, so a theme file that overrides a referencing token has no effect. Use `default` (`@theme`) or `static` (`@theme static`) to keep references and runtime theming.
+
+Recommended settings for a tokens-only file with runtime dark mode:
+
+```json
+{
+  "includeTailwindImport": false,
+  "themeDirective": "default",
+  "useReferences": true,
+  "themeSelector": "[data-theme=\"{theme}\"]",
+  "globalPrefix": ""
+}
+```
+
+## Cobalt token export
+
+This exporter also drives the TeamViewer **Cobalt** token export (Foundations, Semantic and
+Component tiers). It names tokens from their Figma **WEB code syntax**, splits component
+tokens into their own file, and validates the output against the Cobalt token rules. The
+full handoff lives in [`HANDOFF.md`](./HANDOFF.md); the summary follows.
+
+### Recommended Supernova settings
+
+| Setting | Value |
+| --- | --- |
+| CSS selector | `@theme` |
+| Theme selector | `[data-theme="{theme}"]` |
+| Component collections | `Component` |
+| Mode attribute collections | `level, density` |
+| Excluded collections | `Dimension` |
+| Validate Cobalt rules | on |
+| Generate index file | on |
+| Use code syntax names | on (property `Syntax: Web`) |
+
+### Output files
+
+- **`tailwind.css`** — Foundations + Semantic as Tailwind v4 theme tokens in `@theme static`.
+  Names are unprefixed (`--color-…`, `--spacing-…`); Tailwind's `prefix(cb)` adds `cb-` at
+  runtime, so variables resolve to `--cb-*`.
+- **`tailwind.light.css` / `tailwind.dark.css`** — per-mode Semantic colours under
+  `[data-theme="light"|"dark"]`. Transparent colours emit
+  `color-mix(in srgb, var(--cb-ref-…) N%, transparent)`.
+- **`components.css`** — the `--cb-cmp-*` component tokens as plain custom properties in
+  `:root`. Component→component aliases stay as `var()`; focus-radius as
+  `calc(var(radius) + var(offset))`; gradients and shadows included; `[data-level="1..10"]`
+  and `[data-density="sm"|"xs"]` blocks at the bottom.
+- **`index.css`** — single entry point that imports the four files above.
+
+### The build fails (Validate Cobalt rules) when
+
+- a token is missing WEB code syntax;
+- a token aliases outside its allowed tier (`--cb-ref-` only from Semantic colours);
+- a component value is raw where its property isn't allowed to be;
+- an alias cycle, a broken reference, or an unbound gradient stop exists.
+
+Each failure names the offending token(s), so they can be fixed in Figma or excluded.
