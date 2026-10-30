@@ -635,6 +635,14 @@
         "category": "CSS selectors"
     },
     {
+        "key": "componentCollections",
+        "type": "array",
+        "default": [],
+        "title": "Component collections",
+        "description": "Figma collections, by name, whose tokens are written to components.css as plain custom properties under their full code syntax names, outside @theme, e.g. 'Component'.",
+        "category": "CSS selectors"
+    },
+    {
         "key": "findReplace",
         "type": "object",
         "title": "Find and replace",

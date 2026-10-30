@@ -104,6 +104,8 @@ export type ExporterConfiguration = {
   codeSyntaxProperty: string
   /** Figma collections, by name, whose tokens are left out of the export */
   excludedCollections: Array<string>
+  /** Figma collections whose tokens are written to components.css as plain custom properties, outside @theme */
+  componentCollections: Array<string>
   /** When enabled, uses specific prefixes for different color utilities */
   useColorUtilityPrefixes: boolean
   /** Configuration for color utility prefixes and their patterns */

@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.0] - 2026-10-30
+
+### Added
+- `componentCollections`: tokens from these Figma collections (e.g. `Component`) are written to
+  `components.css` as plain custom properties under their full code syntax names
+  (`--cb-cmp-*`), outside `@theme`, and reference other tokens by their full names
+  (`var(--cb-spacing-3)`). Theme overrides of component tokens go to `components.<theme>.css`.
+- A colour that aliases another colour with its own opacity (e.g. neutral/500 @ 20%) is exported
+  as `color-mix(in srgb, var(--ref-neutral-500) 20%, transparent)` instead of a resolved colour.
+
+### Fixed
+- Font weights that arrive as generic dimensions are exported unitless (`800`, not `800px`),
+  based on their code syntax name, when no `tokenPathUnits` rule matches their path.
+
 ## [1.5.3] - 2026-10-30
 
 ### Fixed

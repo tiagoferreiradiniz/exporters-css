@@ -8,9 +8,10 @@ import {
   REM_TYPOGRAPHY_PROPERTY_TYPES,
   DEFAULT_TOKEN_PATH_UNITS,
   DEFAULT_TOKEN_PATH_PREFIXES,
+  UNITLESS_NAMESPACES,
   UnitTreatment
 } from "../constants/defaults"
-import { codeSyntaxName, stripTailwindPrefix } from "./code-syntax"
+import { codeSyntaxName, stripTailwindPrefix, runtimeVariableName } from "./code-syntax"
 import { ColorHelper } from "@supernovaio/export-utils"
 import { ColorFormat } from "@supernovaio/export-utils"
 
@@ -73,7 +74,23 @@ function matchByTokenPath<T>(token: Token, rules: Record<string, T>): T | undefi
  */
 export function resolveUnitTreatment(token: Token): UnitTreatment {
   const rules = exportConfiguration.tokenPathUnits ?? DEFAULT_TOKEN_PATH_UNITS
-  return matchByTokenPath(token, rules) ?? "px"
+  return matchByTokenPath(token, rules) ?? unitTreatmentFromCodeSyntax(token) ?? "px"
+}
+
+/**
+ * Resolves a unit treatment from the token's code syntax name, for tokens whose
+ * path matches no rule. Font weights arrive from Figma as generic dimensions, so
+ * without this they are emitted as `800px`.
+ *
+ * @param token - The token being converted
+ * @returns The unit treatment for the name's namespace, or undefined if none applies
+ */
+function unitTreatmentFromCodeSyntax(token: Token): UnitTreatment | undefined {
+  const name = codeSyntaxName(token)
+  if (!name) return undefined
+
+  const namespace = stripTailwindPrefix(name)
+  return UNITLESS_NAMESPACES.some((prefix) => namespace.startsWith(prefix)) ? "unitless" : undefined
 }
 
 /**
@@ -312,7 +329,7 @@ function formatRatio(ratio: number): string {
  * @param tokenGroups - Array of token groups for determining token hierarchy
  * @returns Formatted CSS custom property string with optional description comment or null if token type is not allowed
  */
-export function convertedToken(token: Token, mappedTokens: Map<string, Token>, tokenGroups: Array<TokenGroup>, colorTokensNeedingOklch?: Set<string>): string | null {
+export function convertedToken(token: Token, mappedTokens: Map<string, Token>, tokenGroups: Array<TokenGroup>, colorTokensNeedingOklch?: Set<string>, useRuntimeNames: boolean = false): string | null {
   // Skip tokens that are not allowed for Tailwind customization
   if (!isAllowedTokenType(token.tokenType)) {
     return null;
@@ -325,9 +342,15 @@ export function convertedToken(token: Token, mappedTokens: Map<string, Token>, t
 
   // Generate the CSS variable name based on token properties and configuration
   let name = tokenVariableName(token, tokenGroups)
+  // Outside @theme nothing adds the Tailwind prefix, so names are written in full
+  const variableName = (t: Token): string => {
+    const themeName = tokenVariableName(t, tokenGroups)
+    return useRuntimeNames ? runtimeVariableName(t, themeName) : themeName
+  }
+  if (useRuntimeNames) name = variableName(token)
 
   // Convert token value to CSS, handling references and formatting according to configuration
-  const value = CSSHelper.tokenToCSS(token, mappedTokens, {
+  const value = colorMixValue(token, mappedTokens, variableName) ?? CSSHelper.tokenToCSS(token, mappedTokens, {
     allowReferences: exportConfiguration.useReferences,
     decimals: exportConfiguration.colorPrecision,
     colorFormat: exportConfiguration.colorFormat,
@@ -354,7 +377,7 @@ export function convertedToken(token: Token, mappedTokens: Map<string, Token>, t
       if (context?.needsRgb && t.tokenType === TokenType.color && colorTokensNeedingOklch?.has(t.id)) {
         return `var(--oklch-${tokenVariableName(t, tokenGroups)})`
       }
-      return `var(--${tokenVariableName(t, tokenGroups)})`
+      return `var(--${variableName(t)})`
     },
     // Handle blur values - extract just the dimension
     valueTransformer: (value: string, t: Token) => {
@@ -404,6 +427,31 @@ export function convertedToken(token: Token, mappedTokens: Map<string, Token>, t
   
   output += `${indentString}--${name}: ${value};`
   return output
+}
+
+/**
+ * Converts a colour that aliases another colour with its own opacity, e.g. neutral/500 @ 20%,
+ * to `color-mix()`. The shared colour helper only keeps such an alias for rgb formats and
+ * otherwise writes the resolved colour, which loses the link to the palette.
+ *
+ * @param token - The token being converted
+ * @param mappedTokens - All tokens by id, for resolving the alias
+ * @param variableName - Names the referenced token's variable
+ * @returns The color-mix() value, or undefined when the token is not an alias with opacity
+ */
+function colorMixValue(token: Token, mappedTokens: Map<string, Token>, variableName: (t: Token) => string): string | undefined {
+  if (!exportConfiguration.useReferences || token.tokenType !== TokenType.color) return undefined
+
+  // @ts-ignore
+  const value = token.value
+  if (!value || value.referencedTokenId || value.opacity?.referencedTokenId) return undefined
+
+  const referenced = value.color?.referencedTokenId ? mappedTokens.get(value.color.referencedTokenId) : undefined
+  const alpha = value.opacity?.measure
+  if (!referenced || !isAllowedTokenType(referenced.tokenType) || typeof alpha !== "number" || alpha >= 1) return undefined
+
+  const percent = Math.round(alpha * 10000) / 100
+  return `color-mix(in srgb, var(--${variableName(referenced)}) ${percent}%, transparent)`
 }
 
 /**
