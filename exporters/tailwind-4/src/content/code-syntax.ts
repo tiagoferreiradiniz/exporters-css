@@ -2,7 +2,8 @@ import { Token } from "@supernovaio/sdk-exporters"
 import { exportConfiguration } from ".."
 
 /**
- * Reads a token's custom property by its display name, case-insensitively.
+ * Reads a token's custom property by its display name, case-insensitively and ignoring
+ * the "Syntax:" prefix Figma imports give code syntax properties, so "Web" finds "Syntax: Web".
  *
  * Figma imports store code syntax and the source collection as custom properties,
  * so this is how the exporter reaches data the token model has no field for.
@@ -12,8 +13,8 @@ import { exportConfiguration } from ".."
  * @returns The trimmed value, or null when the property is missing or empty
  */
 export function tokenPropertyValue(token: Token, propertyName: string): string | null {
-  const wanted = propertyName.trim().toLowerCase()
-  const property = (token.properties || []).find((p) => p.name.trim().toLowerCase() === wanted)
+  const wanted = comparablePropertyName(propertyName)
+  const property = (token.properties || []).find((p) => comparablePropertyName(p.name) === wanted)
   if (!property) return null
 
   const values = token.propertyValues || {}
@@ -22,6 +23,16 @@ export function tokenPropertyValue(token: Token, propertyName: string): string |
 
   const text = String(value).trim()
   return text.length > 0 ? text : null
+}
+
+/**
+ * Normalizes a property name for comparison: "Syntax: Web" -> "web".
+ *
+ * @param name - A property display name
+ * @returns The lowercased name without a leading "Syntax:"
+ */
+function comparablePropertyName(name: string): string {
+  return name.trim().toLowerCase().replace(/^syntax:\s*/, "")
 }
 
 /**
@@ -67,7 +78,8 @@ export function codeSyntaxName(token: Token): string | null {
     const path = [...(token.tokenPath || []), token.name].join("/")
     throw new Error(
       `Token "${path}" has no "${exportConfiguration.codeSyntaxProperty}" code syntax. ` +
-        `Set its WEB code syntax in Figma, or check the property name. Properties found: ${availablePropertyNames(token)}.`
+        `Set its WEB code syntax in Figma, check the property name, or exclude its collection ` +
+        `("${tokenPropertyValue(token, "Collection") ?? "unknown"}"). Properties found: ${availablePropertyNames(token)}.`
     )
   }
 

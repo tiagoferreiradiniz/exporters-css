@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.1] - 2026-10-30
+
+### Fixed
+- `codeSyntaxProperty` now matches Figma's "Syntax: Web" property: a leading "Syntax:" is
+  ignored, so the previous default `Web` keeps working. The default is now `Syntax: Web`.
+- The missing-code-syntax error also shows the token's collection, to make exclusions easier.
+
 ## [1.5.0] - 2026-10-30
 
 ### Added
