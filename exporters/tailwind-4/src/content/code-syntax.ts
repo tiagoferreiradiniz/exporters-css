@@ -161,3 +161,72 @@ export function isInExcludedCollection(token: Token): boolean {
   const collection = tokenPropertyValue(token, "Collection")
   return collection !== null && excluded.includes(collection.toLowerCase())
 }
+
+/**
+ * Clears references to excluded tokens, anywhere in a token's value, so the token is
+ * exported with its resolved value instead of a var() pointing at a token that is not output.
+ *
+ * Token values carry their resolved value next to `referencedTokenId`, so clearing the id
+ * is enough to inline it.
+ *
+ * @param tokens - Tokens to update in place, including theme overrides
+ * @param excludedIds - Ids of the tokens left out of the export
+ * @returns The paths of the tokens that had a reference inlined
+ */
+export function inlineExcludedReferences(tokens: Array<Token>, excludedIds: Set<string>): Array<string> {
+  const inlined: Array<string> = []
+  if (excludedIds.size === 0) return inlined
+
+  const clear = (value: unknown): boolean => {
+    if (!value || typeof value !== "object") return false
+    let changed = false
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+      if (key === "referencedTokenId" && typeof child === "string" && excludedIds.has(child)) {
+        ;(value as Record<string, unknown>)[key] = null
+        changed = true
+      } else if (clear(child)) {
+        changed = true
+      }
+    }
+    return changed
+  }
+
+  for (const token of tokens) {
+    if (clear((token as Token & { value: unknown }).value)) inlined.push(describeToken(token))
+  }
+  return inlined
+}
+
+/**
+ * Fails the export when any token references a token that is not part of it, listing all
+ * of them at once. These are typically aliases to tokens deleted in Figma that were not
+ * re-synced, or to a token in another brand.
+ *
+ * @param tokens - Tokens to check, including theme overrides
+ * @param knownIds - Ids of every token in the export
+ */
+export function validateReferences(tokens: Array<Token>, knownIds: Set<string>): void {
+  const broken: Array<string> = []
+
+  const collect = (value: unknown, found: Set<string>): void => {
+    if (!value || typeof value !== "object") return
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+      if (key === "referencedTokenId" && typeof child === "string" && !knownIds.has(child)) found.add(child)
+      else collect(child, found)
+    }
+  }
+
+  for (const token of tokens) {
+    const missing = new Set<string>()
+    collect((token as Token & { value: unknown }).value, missing)
+    if (missing.size > 0) broken.push(`  - ${describeToken(token)} -> ${[...missing].join(", ")}`)
+  }
+  if (broken.length === 0) return
+
+  const shown = 50
+  const more = broken.length > shown ? `\n  … and ${broken.length - shown} more` : ""
+  throw new Error(
+    `${broken.length} token(s) reference tokens that are not in the export. ` +
+      `Re-sync the Figma source in Supernova, or fix the aliases in Figma.\n${[...new Set(broken)].slice(0, shown).join("\n")}${more}`
+  )
+}

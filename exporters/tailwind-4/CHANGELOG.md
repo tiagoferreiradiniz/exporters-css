@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.3] - 2026-10-30
+
+### Fixed
+- A token that aliases a token in an excluded collection is exported with its resolved value
+  instead of failing with "unknown referenced token". Theme overrides are handled too.
+- References to tokens that are not in the export at all (deleted in Figma, not re-synced)
+  are reported for all tokens in one error, by token path, instead of a bare token id.
+
 ## [1.5.2] - 2026-10-30
 
 ### Fixed
