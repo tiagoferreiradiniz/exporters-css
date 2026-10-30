@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.0] - 2026-10-30
+
+### Added
+- `useCodeSyntaxNames` (default off): name each token by its WEB code syntax from Figma,
+  verbatim, instead of deriving a name from its path. A token without code syntax fails the
+  export with the list of custom properties it does carry. When `globalPrefix` is set, it is
+  removed from names inside `@theme`, since Tailwind's `prefix()` adds it back.
+- `codeSyntaxProperty` (default `Web`): the custom property that holds the WEB code syntax.
+- `excludedCollections`: leave out tokens from the named Figma collections (matched against
+  the token's `Collection` property), e.g. `["Dimension"]`.
+
 ## [1.4.0] - 2026-10-16
 
 ### Added

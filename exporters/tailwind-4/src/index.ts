@@ -10,6 +10,7 @@ import { styleOutputFile, generateStyleFiles, indexOutputFile, resetOutputFile }
 import { ThemeHelper, WriteTokenPropStore } from "@supernovaio/export-utils"
 import { tokenVariableName, isAllowedTokenType } from "./content/token"
 import { variableToTailwindClassName } from "./utils/tailwind-class"
+import { isInExcludedCollection } from "./content/code-syntax"
 
 /** Exporter configuration from the resolved default configuration and user overrides */
 export const exportConfiguration = Pulsar.exportConfig<ExporterConfiguration>()
@@ -85,6 +86,9 @@ Pulsar.export(async (sdk: Supernova, context: PulsarContext): Promise<Array<AnyO
     tokens = tokens.filter((token) => token.brandId === brand.id)
     tokenGroups = tokenGroups.filter((tokenGroup) => tokenGroup.brandId === brand.id)
   }
+
+  // Leave out Figma collections that are not part of the token set
+  tokens = tokens.filter((token) => !isInExcludedCollection(token))
 
   // Write back generated Tailwind classnames and CSS variable names to token properties
   // This allows designers to see the generated names directly in their design system

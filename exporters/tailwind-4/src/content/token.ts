@@ -10,6 +10,7 @@ import {
   DEFAULT_TOKEN_PATH_PREFIXES,
   UnitTreatment
 } from "../constants/defaults"
+import { codeSyntaxName, stripTailwindPrefix } from "./code-syntax"
 import { ColorHelper } from "@supernovaio/export-utils"
 import { ColorFormat } from "@supernovaio/export-utils"
 
@@ -543,6 +544,12 @@ function matchGroupPrefixOverride(token: Token): { namespace: string; remainingP
  * @returns Formatted variable name string
  */
 export function tokenVariableName(token: Token, tokenGroups: Array<TokenGroup>): string {
+  // The WEB code syntax from Figma is the name engineers already see in Dev Mode, so it wins over any derived name
+  const codeSyntax = codeSyntaxName(token)
+  if (codeSyntax !== null) {
+    return stripTailwindPrefix(codeSyntax)
+  }
+
   let prefix = getTokenPrefix(token.tokenType)
 
   // Determine if find/replace should be applied before prefix (passed to NamingHelper)

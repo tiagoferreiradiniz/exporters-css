@@ -98,6 +98,12 @@ export type ExporterConfiguration = {
   themeDirective: ThemeDirective
   /** Maps a token path fragment to a Tailwind namespace, overriding the namespace derived from the token type */
   groupPrefixOverrides: Record<string, string>
+  /** When enabled, each token is named by its WEB code syntax from Figma instead of its path */
+  useCodeSyntaxNames: boolean
+  /** Name of the custom property holding the WEB code syntax */
+  codeSyntaxProperty: string
+  /** Figma collections, by name, whose tokens are left out of the export */
+  excludedCollections: Array<string>
   /** When enabled, uses specific prefixes for different color utilities */
   useColorUtilityPrefixes: boolean
   /** Configuration for color utility prefixes and their patterns */
