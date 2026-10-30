@@ -349,9 +349,63 @@ function validateGradientStops(token: Token): void {
 }
 
 /**
+ * Renders a gradient token as a CSS linear-gradient, keeping every colour stop as a
+ * plain var() reference to its bound colour.
+ *
+ * The export-utils gradient renderer wraps each stop in `oklch(var(--x) / opacity)`,
+ * which assumes the variable holds raw oklch channels. Our colour variables hold full
+ * `oklch(...)` values, so that wrapper would produce an invalid nested `oklch()`. We
+ * build the gradient ourselves so stops stay as `var(--x)` (or a color-mix when the
+ * stop carries opacity).
+ *
+ * @param token - The token to render; only gradient tokens produce a value
+ * @param mappedTokens - Map of all tokens for resolving stop references
+ * @param variableName - Resolves a referenced token to its CSS variable name
+ * @returns The linear-gradient CSS, or null when the token is not a renderable gradient
+ */
+function gradientValue(
+  token: Token,
+  mappedTokens: Map<string, Token>,
+  variableName: (t: Token) => string
+): string | null {
+  if (token.tokenType !== TokenType.gradient) return null
+  const layers = (token as { value?: unknown }).value as GradientTokenValue[] | undefined
+  if (!Array.isArray(layers) || layers.length === 0) return null
+
+  const gradients: Array<string> = []
+  for (const layer of layers) {
+    // Figma stores the direction as normalized from/to points; convert to a CSS angle
+    // (0deg points up, 90deg points right).
+    const dx = (layer.to?.x ?? 0) - (layer.from?.x ?? 0)
+    const dy = (layer.to?.y ?? 0) - (layer.from?.y ?? 0)
+    let angle = Math.round((Math.atan2(dx, -dy) * 180) / Math.PI)
+    if (angle < 0) angle += 360
+
+    const stops: Array<string> = []
+    for (const stop of layer.stops || []) {
+      const refId = stop.color?.referencedTokenId || stop.color?.color?.referencedTokenId
+      const refToken = refId ? mappedTokens.get(refId) : undefined
+      // Without a resolvable reference we cannot emit a var(); fall back to export-utils
+      if (!refToken) return null
+      const ref = `var(--${variableName(refToken)})`
+      const opacity = stop.color?.opacity?.measure
+      const colorExpr =
+        typeof opacity === "number" && opacity < 1
+          ? `color-mix(in srgb, ${ref} ${+(opacity * 100).toFixed(4)}%, transparent)`
+          : ref
+      const position = +(stop.position * 100).toFixed(2)
+      stops.push(`${colorExpr} ${position}%`)
+    }
+    if (stops.length === 0) return null
+    gradients.push(`linear-gradient(${angle}deg, ${stops.join(", ")})`)
+  }
+  return gradients.join(", ")
+}
+
+/**
  * Converts a design token into its CSS custom property representation.
  * Handles formatting of the token value, references, and optional description comments.
- * 
+ *
  * @param token - The design token to convert
  * @param mappedTokens - Map of all tokens for resolving references
  * @param tokenGroups - Array of token groups for determining token hierarchy
@@ -386,6 +440,7 @@ export function convertedToken(token: Token, mappedTokens: Map<string, Token>, t
   const value =
     colorMixValue(token, mappedTokens, variableName) ??
     radiusFocusValue(token, mappedTokens, variableName) ??
+    gradientValue(token, mappedTokens, variableName) ??
     CSSHelper.tokenToCSS(token, mappedTokens, {
     allowReferences: exportConfiguration.useReferences,
     decimals: exportConfiguration.colorPrecision,
