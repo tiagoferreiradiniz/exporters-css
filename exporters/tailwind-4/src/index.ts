@@ -6,15 +6,82 @@
 
 import { Supernova, PulsarContext, RemoteVersionIdentifier, AnyOutputFile, TokenType, Token, TokenGroup, TokenTheme, OutputTextFile } from "@supernovaio/sdk-exporters"
 import { ExporterConfiguration, ThemeExportStyle, FileStructure } from "../config"
-import { styleOutputFile, generateStyleFiles, indexOutputFile, resetOutputFile, componentOutputFile } from "./files/tailwind-file"
+import { styleOutputFile, generateStyleFiles, indexOutputFile, resetOutputFile, componentOutputFile, componentModeBlocks } from "./files/tailwind-file"
 import { ThemeHelper, WriteTokenPropStore } from "@supernovaio/export-utils"
 import { tokenVariableName, isAllowedTokenType } from "./content/token"
 import { variableToTailwindClassName } from "./utils/tailwind-class"
-import { isInExcludedCollection, validateCodeSyntax, inlineExcludedReferences, validateReferences } from "./content/code-syntax"
+import { isInExcludedCollection, validateCodeSyntax, inlineExcludedReferences, validateReferences, collectionName } from "./content/code-syntax"
 import { validateCobaltRules } from "./content/validation"
 
 /** Exporter configuration from the resolved default configuration and user overrides */
 export const exportConfiguration = Pulsar.exportConfig<ExporterConfiguration>()
+
+/** One extra-mode block to append to components.css */
+type ComponentModeSet = { attribute: string; value: string; emit: Array<Token>; all: Array<Token> }
+
+/**
+ * Builds the [data-<collection>="<mode>"] blocks for every extra mode of a mode-attribute
+ * collection (e.g. level, density). A collection's first mode is the base value already in
+ * :root; its other modes arrive as Supernova themes that override the collection's tokens,
+ * and each becomes one attribute block appended to components.css.
+ *
+ * @param sdk - The Supernova SDK instance
+ * @param remoteVersionIdentifier - The version to read themes from
+ * @param tokens - The base (un-themed) tokens
+ * @param tokenGroups - Array of token groups
+ * @returns The CSS text for all mode blocks, or an empty string when there are none
+ */
+async function buildComponentModeBlocks(
+  sdk: Supernova,
+  remoteVersionIdentifier: RemoteVersionIdentifier,
+  tokens: Array<Token>,
+  tokenGroups: Array<TokenGroup>
+): Promise<string> {
+  const wanted = (exportConfiguration.modeAttributeCollections || []).map((c) => c.trim().toLowerCase())
+  if (wanted.length === 0) return ''
+
+  const tokenById = new Map(tokens.map((token) => [token.id, token]))
+  const themes = await sdk.tokens.getTokenThemes(remoteVersionIdentifier)
+
+  const sets = themes
+    .map((theme): ComponentModeSet | null => {
+      // Which mode-attribute collection does this theme override? Light/Dark override the
+      // Semantic colour collection, so they fall through. Look up each overridden token's collection.
+      const collections = new Set(
+        (theme.overriddenTokens || [])
+          .map((override) => collectionName(tokenById.get(override.id) ?? override))
+          .filter((name): name is string => name !== null)
+      )
+      const match = [...collections].find((name) => wanted.includes(name.toLowerCase()))
+      if (!match) return null
+
+      const themed = sdk.tokens.computeTokensByApplyingThemes(tokens, tokens, [theme])
+      const emit = themed.filter((token) => (collectionName(token) || '').toLowerCase() === match.toLowerCase())
+      if (emit.length === 0) return null
+
+      return { attribute: `data-${match}`, value: modeAttributeValue(theme, match), emit, all: themed }
+    })
+    .filter((set): set is ComponentModeSet => set !== null && set.value.length > 0)
+
+  return componentModeBlocks(sets, tokenGroups)
+}
+
+/**
+ * Derives the attribute value (the mode name) for a mode-attribute theme, dropping the
+ * collection name and the separators Supernova adds, e.g. "1 • level" -> "1".
+ *
+ * @param theme - The theme carrying the mode
+ * @param collection - The mode-attribute collection name
+ * @returns The bare mode value
+ */
+function modeAttributeValue(theme: TokenTheme, collection: string): string {
+  const raw = theme.collectionName ? theme.name.replace(theme.collectionName, '') : theme.name
+  return raw
+    .replace(new RegExp(collection, 'ig'), '')
+    .replace(/[•·/|]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
 
 /**
  * Checks if any Tailwind styles are disabled in the configuration
@@ -99,6 +166,11 @@ Pulsar.export(async (sdk: Supernova, context: PulsarContext): Promise<Array<AnyO
   validateCodeSyntax(tokens)
   validateCobaltRules(tokens, new Map(tokens.map((token) => [token.id, token])))
 
+  // Mode-attribute collections (e.g. level, density): the first mode is the base value in
+  // components.css; each extra mode becomes a [data-<collection>="<mode>"] block appended to it.
+  // These modes arrive as Supernova themes that override the collection's tokens.
+  const componentModeBlockCss = await buildComponentModeBlocks(sdk, remoteVersionIdentifier, tokens, tokenGroups)
+
   // Write back generated Tailwind classnames and CSS variable names to token properties
   // This allows designers to see the generated names directly in their design system
   // Only runs during actual export, not in preview mode
@@ -158,12 +230,12 @@ Pulsar.export(async (sdk: Supernova, context: PulsarContext): Promise<Array<AnyO
         if (exportConfiguration.fileStructure === FileStructure.SingleFile) {
           return processOutputFiles([
             styleOutputFile(tokens, tokenGroups),
-            componentOutputFile(tokens, tokenGroups),
+            componentOutputFile(tokens, tokenGroups, '', undefined, componentModeBlockCss),
             indexOutputFile(tokens)
           ])
         } else {
           const styleFiles = generateStyleFiles(tokens, tokenGroups)
-          const componentFile = componentOutputFile(tokens, tokenGroups)
+          const componentFile = componentOutputFile(tokens, tokenGroups, '', undefined, componentModeBlockCss)
           const resetFile = resetOutputFile()
           const indexFile = indexOutputFile(tokens)
           return [...styleFiles, ...(componentFile ? [componentFile] : []), ...(resetFile ? [resetFile] : []), ...(indexFile ? [indexFile] : [])]
@@ -188,7 +260,7 @@ Pulsar.export(async (sdk: Supernova, context: PulsarContext): Promise<Array<AnyO
             const baseFiles = generateStyleFiles(tokens, tokenGroups)
             outputFiles = [...outputFiles, ...baseFiles]
           }
-          const baseComponentFile = componentOutputFile(tokens, tokenGroups)
+          const baseComponentFile = componentOutputFile(tokens, tokenGroups, '', undefined, componentModeBlockCss)
           if (baseComponentFile) outputFiles.push(baseComponentFile)
         }
         
@@ -246,7 +318,7 @@ Pulsar.export(async (sdk: Supernova, context: PulsarContext): Promise<Array<AnyO
             const baseFiles = generateStyleFiles(tokens, tokenGroups)
             mergedOutputFiles = [...mergedOutputFiles, ...baseFiles]
           }
-          const baseComponentFile = componentOutputFile(tokens, tokenGroups)
+          const baseComponentFile = componentOutputFile(tokens, tokenGroups, '', undefined, componentModeBlockCss)
           if (baseComponentFile) mergedOutputFiles.push(baseComponentFile)
         }
         
@@ -284,14 +356,14 @@ Pulsar.export(async (sdk: Supernova, context: PulsarContext): Promise<Array<AnyO
   if (exportConfiguration.fileStructure === FileStructure.SingleFile) {
     return processOutputFiles([
         exportConfiguration.exportBaseValues ? styleOutputFile(tokens, tokenGroups) : null,
-        exportConfiguration.exportBaseValues ? componentOutputFile(tokens, tokenGroups) : null,
+        exportConfiguration.exportBaseValues ? componentOutputFile(tokens, tokenGroups, '', undefined, componentModeBlockCss) : null,
         indexOutputFile(tokens)
     ])
   } else {
     const styleFiles = exportConfiguration.exportBaseValues 
     ? generateStyleFiles(tokens, tokenGroups) 
     : []
-    const componentFile = exportConfiguration.exportBaseValues ? componentOutputFile(tokens, tokenGroups) : null
+    const componentFile = exportConfiguration.exportBaseValues ? componentOutputFile(tokens, tokenGroups, '', undefined, componentModeBlockCss) : null
     const resetFile = exportConfiguration.fileStructure === FileStructure.SeparateByType && shouldDisableDefaultTailwindConfiguration() ? resetOutputFile() : null
     const indexFile = indexOutputFile(tokens)
     return [...styleFiles, ...(componentFile ? [componentFile] : []), ...(resetFile ? [resetFile] : []), ...(indexFile ? [indexFile] : [])]

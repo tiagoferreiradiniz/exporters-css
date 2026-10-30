@@ -106,6 +106,8 @@ export type ExporterConfiguration = {
   excludedCollections: Array<string>
   /** Figma collections whose tokens are written to components.css as plain custom properties, outside @theme */
   componentCollections: Array<string>
+  /** Figma collections whose extra modes become [data-<collection>="<mode>"] blocks in components.css (first mode is the base value) */
+  modeAttributeCollections: Array<string>
   /** When enabled, fails the export on Cobalt token rules: raw component values, palette aliases outside Semantic, alias cycles */
   validateCobaltRules: boolean
   /** When enabled, uses specific prefixes for different color utilities */

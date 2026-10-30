@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.10.0] - 2026-10-30
+
+### Added
+- Mode-attribute collections (`modeAttributeCollections`, default `["level", "density"]`). A collection
+  with several modes is written so its first mode is the base value in `components.css` (`:root`), and
+  each other mode becomes a `[data-<collection>="<mode>"]` block appended to `components.css`, e.g.
+  `[data-level="1"]` and `[data-density="sm"]`. The extra modes are read from the Supernova themes that
+  override the collection's tokens; the attribute value is the mode name. Tokens in these collections are
+  treated as component tokens, so their base values live in `components.css` rather than `@theme`.
+
 ## [1.9.1] - 2026-10-30
 
 ### Fixed
