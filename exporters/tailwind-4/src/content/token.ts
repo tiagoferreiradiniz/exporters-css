@@ -181,9 +181,10 @@ function generateDebugInfo(token: Token, indentString: string): string {
  * @param token - The typography token to convert
  * @param mappedTokens - Map of all tokens for resolving references
  * @param tokenGroups - Array of token groups for determining token hierarchy
+ * @param useRuntimeNames - Declare the variables under their full names, for blocks outside @theme
  * @returns Formatted CSS custom property string
  */
-function handleTypographyToken(token: Token, mappedTokens: Map<string, Token>, tokenGroups: Array<TokenGroup>): string {
+function handleTypographyToken(token: Token, mappedTokens: Map<string, Token>, tokenGroups: Array<TokenGroup>, useRuntimeNames: boolean = false): string {
   const indentString = GeneralHelper.indent(exportConfiguration.indent)
   let output = ""
   
@@ -196,7 +197,7 @@ function handleTypographyToken(token: Token, mappedTokens: Map<string, Token>, t
   }
 
   // Get the base name for the typography token
-  const baseName = tokenVariableName(token, tokenGroups)
+  const baseName = declaredVariableName(token, tokenGroups, useRuntimeNames)
 
   // Extract individual properties from the typography token
   // @ts-ignore
@@ -233,7 +234,7 @@ function handleTypographyToken(token: Token, mappedTokens: Map<string, Token>, t
         // letter spacing keep the unit they were authored in
         forceRemUnit: shouldForceRemForTypographyProperty(tokenTypeMap[property]),
         remBase: exportConfiguration.remBase,
-        tokenToVariableRef: (t) => `var(--${tokenVariableName(t, tokenGroups)})`
+        tokenToVariableRef: (t) => `var(--${fullVariableName(t, tokenGroups)})`
       })};\n`
     }
   }
@@ -419,7 +420,7 @@ export function convertedToken(token: Token, mappedTokens: Map<string, Token>, t
 
   // Special handling for typography tokens
   if (token.tokenType === TokenType.typography) {
-    return handleTypographyToken(token, mappedTokens, tokenGroups)
+    return handleTypographyToken(token, mappedTokens, tokenGroups, useRuntimeNames)
   }
 
   // Gradients must have every colour stop bound to a palette colour
@@ -427,14 +428,12 @@ export function convertedToken(token: Token, mappedTokens: Map<string, Token>, t
     validateGradientStops(token)
   }
 
-  // Generate the CSS variable name based on token properties and configuration
-  let name = tokenVariableName(token, tokenGroups)
-  // Outside @theme nothing adds the Tailwind prefix, so names are written in full
-  const variableName = (t: Token): string => {
-    const themeName = tokenVariableName(t, tokenGroups)
-    return useRuntimeNames ? runtimeVariableName(t, themeName) : themeName
-  }
-  if (useRuntimeNames) name = variableName(token)
+  // Generate the CSS variable name based on token properties and configuration.
+  // Outside @theme nothing adds the Tailwind prefix, so the declared name is written in full
+  let name = declaredVariableName(token, tokenGroups, useRuntimeNames)
+  // Tailwind's prefix() only renames the variables @theme declares, never the var()
+  // references in their values, so references always use the full name
+  const variableName = (t: Token): string => fullVariableName(t, tokenGroups)
 
   // Convert token value to CSS, handling references and formatting according to configuration
   const value =
@@ -466,7 +465,7 @@ export function convertedToken(token: Token, mappedTokens: Map<string, Token>, t
       }
       // If context requests a channel-based color variable (needsRgb), use the oklch utility variable in this exporter
       if (context?.needsRgb && t.tokenType === TokenType.color && colorTokensNeedingOklch?.has(t.id)) {
-        return `var(--oklch-${tokenVariableName(t, tokenGroups)})`
+        return `var(--${oklchVariableName(t, tokenGroups, true)})`
       }
       return `var(--${variableName(t)})`
     },
@@ -514,6 +513,7 @@ export function convertedToken(token: Token, mappedTokens: Map<string, Token>, t
     const isBackdropBlur = fullPath.includes('background')
     const blurName = isBackdropBlur ? 'backdrop-blur' : (token.name.toLowerCase() === 'blur' ? 'blur-default' : `blur-${token.name}`)
     name = NamingHelper.codeSafeVariableName(blurName, StringCase.kebabCase)
+    if (useRuntimeNames) name = runtimeVariableName(token, name)
   }
   
   output += `${indentString}--${name}: ${value};`
@@ -933,6 +933,46 @@ export function tokenVariableName(token: Token, tokenGroups: Array<TokenGroup>):
 }
 
 /**
+ * Gets the name a token's variable has in the browser, prefix included. Every var()
+ * reference uses it, inside @theme too, since Tailwind's prefix() does not rewrite them.
+ *
+ * @param token - The token to name
+ * @param tokenGroups - Array of token groups for determining token hierarchy
+ * @returns The full variable name, e.g. "cb-ref-neutral-500"
+ */
+export function fullVariableName(token: Token, tokenGroups: Array<TokenGroup>): string {
+  return runtimeVariableName(token, tokenVariableName(token, tokenGroups))
+}
+
+/**
+ * Gets the name to declare a token's variable under: without the prefix inside @theme,
+ * where Tailwind's prefix() adds it, and in full anywhere else.
+ *
+ * @param token - The token to name
+ * @param tokenGroups - Array of token groups for determining token hierarchy
+ * @param useRuntimeNames - True when the declaration is outside @theme
+ * @returns The variable name to declare
+ */
+export function declaredVariableName(token: Token, tokenGroups: Array<TokenGroup>, useRuntimeNames: boolean): string {
+  return useRuntimeNames ? fullVariableName(token, tokenGroups) : tokenVariableName(token, tokenGroups)
+}
+
+/**
+ * Gets the name of a colour's OKLCH channel variable. Declared in the same block as the
+ * colours, so it follows the same rule as `declaredVariableName`.
+ *
+ * @param token - The colour token
+ * @param tokenGroups - Array of token groups for determining token hierarchy
+ * @param useRuntimeNames - True for references, and for declarations outside @theme
+ * @returns The variable name, e.g. "oklch-color-x" or "cb-oklch-color-x"
+ */
+export function oklchVariableName(token: Token, tokenGroups: Array<TokenGroup>, useRuntimeNames: boolean): string {
+  const name = `oklch-${tokenVariableName(token, tokenGroups)}`
+  const prefix = exportConfiguration.globalPrefix?.trim()
+  return useRuntimeNames && prefix ? `${prefix}-${name}` : name
+}
+
+/**
  * Analyzes tokens to identify which color tokens need OKLCH utility variables.
  * A color token needs an OKLCH utility if it's referenced by shadow, border, or gradient tokens
  * that have custom opacity values.
@@ -1020,14 +1060,15 @@ export function getColorTokenOklchValue(token: Token): string {
  * 
  * @param token - The color token to generate OKLCH utility for
  * @param tokenGroups - Array of token groups for determining token hierarchy
+ * @param useRuntimeNames - Declare the variable under its full name, for blocks outside @theme
  * @returns Formatted CSS custom property string for the OKLCH utility variable
  */
 export function generateOklchUtilityVariable(
   token: Token,
-  tokenGroups: Array<TokenGroup>
+  tokenGroups: Array<TokenGroup>,
+  useRuntimeNames: boolean = false
 ): string {
-  const name = tokenVariableName(token, tokenGroups)
-  const oklchName = `oklch-${name}`
+  const oklchName = oklchVariableName(token, tokenGroups, useRuntimeNames)
   const oklchValue = getColorTokenOklchValue(token)
   const indentString = GeneralHelper.indent(exportConfiguration.indent)
   if (exportConfiguration.showDescriptions && token.description) {

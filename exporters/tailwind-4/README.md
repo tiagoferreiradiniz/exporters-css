@@ -276,7 +276,9 @@ full handoff lives in [`HANDOFF.md`](./HANDOFF.md); the summary follows.
 
 | Setting | Value |
 | --- | --- |
+| Global prefix | `cb` |
 | CSS selector | `@theme` |
+| Theme directive with references | `@theme static` |
 | Theme selector | `[data-theme="{theme}"]` |
 | Component collections | `Component` |
 | Mode attribute collections | `level, density` |
@@ -288,13 +290,17 @@ full handoff lives in [`HANDOFF.md`](./HANDOFF.md); the summary follows.
 ### Output files
 
 - **`tailwind.css`** — Foundations + Semantic as Tailwind v4 theme tokens in `@theme static`.
-  Names are unprefixed (`--color-…`, `--spacing-…`); Tailwind's `prefix(cb)` adds `cb-` at
-  runtime, so variables resolve to `--cb-*`.
+  Declared names are unprefixed (`--color-…`, `--spacing-…`); Tailwind's `prefix(cb)` adds `cb-`
+  at runtime, so variables resolve to `--cb-*`. Tailwind does not rewrite `var()` references,
+  so those are written in full (`var(--cb-ref-…)`), as are the typography classes.
 - **`tailwind.light.css` / `tailwind.dark.css`** — per-mode Semantic colours under
-  `[data-theme="light"|"dark"]`. Transparent colours emit
+  `[data-theme="light"|"dark"]`, with full `--cb-*` names (Tailwind only prefixes inside
+  `@theme`). Tokens built from a themed colour, such as gradients, are repeated here so they
+  follow a nested theme wrapper. Transparent colours emit
   `color-mix(in srgb, var(--cb-ref-…) N%, transparent)`.
 - **`components.css`** — the `--cb-cmp-*` component tokens as plain custom properties in
-  `:root`. Component→component aliases stay as `var()`; focus-radius as
+  `:root, [data-theme="light"], [data-theme="dark"]`, so they re-resolve inside a nested theme
+  wrapper. Component→component aliases stay as `var()`; focus-radius as
   `calc(var(radius) + var(offset))`; gradients and shadows included; `[data-level="1..10"]`
   and `[data-density="sm"|"xs"]` blocks at the bottom.
 - **`index.css`** — single entry point that imports the four files above.

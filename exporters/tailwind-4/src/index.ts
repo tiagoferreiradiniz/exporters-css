@@ -269,7 +269,7 @@ Pulsar.export(async (sdk: Supernova, context: PulsarContext): Promise<Array<AnyO
             const baseFiles = generateStyleFiles(tokens, tokenGroups)
             outputFiles = [...outputFiles, ...baseFiles]
           }
-          const baseComponentFile = componentOutputFile(tokens, tokenGroups, '', undefined, componentModeBlockCss)
+          const baseComponentFile = componentOutputFile(tokens, tokenGroups, '', undefined, componentModeBlockCss, themesToApply.map((theme) => ThemeHelper.getThemeIdentifier(theme)))
           if (baseComponentFile) outputFiles.push(baseComponentFile)
         }
         
@@ -327,7 +327,7 @@ Pulsar.export(async (sdk: Supernova, context: PulsarContext): Promise<Array<AnyO
             const baseFiles = generateStyleFiles(tokens, tokenGroups)
             mergedOutputFiles = [...mergedOutputFiles, ...baseFiles]
           }
-          const baseComponentFile = componentOutputFile(tokens, tokenGroups, '', undefined, componentModeBlockCss)
+          const baseComponentFile = componentOutputFile(tokens, tokenGroups, '', undefined, componentModeBlockCss, ['themed'])
           if (baseComponentFile) mergedOutputFiles.push(baseComponentFile)
         }
         
