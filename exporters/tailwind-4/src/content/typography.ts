@@ -1,7 +1,7 @@
 import { NamingHelper, StringCase, CSSHelper } from "@supernovaio/export-utils"
 import { Token, TokenGroup, TokenType, TypographyTokenValue, FontFamilyTokenValue, TextDecorationTokenValue, TextCaseTokenValue, ParagraphSpacingTokenValue } from "@supernovaio/sdk-exporters"
 import { exportConfiguration } from ".."
-import { tokenVariableName, shouldForceRemForTypographyProperty } from "./token"
+import { fullVariableName, shouldForceRemForTypographyProperty } from "./token"
 
 /**
  * Generates a CSS class for a typography token
@@ -44,8 +44,8 @@ export function generateTypographyClass(token: Token, tokenGroups: Array<TokenGr
     true // Add removeDuplicateFragments parameter to prevent duplicated fragments
   )
 
-  // Get the CSS variable name for reference
-  const variableName = tokenVariableName(token, tokenGroups)
+  // Classes sit outside @theme, so they read the variables by their full names
+  const variableName = fullVariableName(token, tokenGroups)
 
   // Get the typography value
   const typographyValue = (token as unknown as { value: TypographyTokenValue }).value

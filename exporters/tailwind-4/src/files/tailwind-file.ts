@@ -19,9 +19,10 @@ import { isComponentToken } from "../content/code-syntax"
  * @param tokens - Array of tokens to process
  * @param themePath - Path of the theme (if applicable)
  * @param theme - Theme object (if applicable)
+ * @param includeDependents - Also keep tokens whose value references a themed token
  * @returns Filtered array of tokens
  */
-function processTokens(tokens: Array<Token>, themePath: string = '', theme?: TokenTheme): Array<Token> {
+function processTokens(tokens: Array<Token>, themePath: string = '', theme?: TokenTheme, includeDependents: boolean = false): Array<Token> {
     // Skip if no tokens and empty files are disabled
     if (!exportConfiguration.generateEmptyFiles && tokens.length === 0) {
         return []
@@ -30,7 +31,9 @@ function processTokens(tokens: Array<Token>, themePath: string = '', theme?: Tok
     // For theme files: filter tokens to only include those that are themed
     let processedTokens = tokens
     if (themePath && theme && exportConfiguration.exportOnlyThemedTokens) {
-        processedTokens = ThemeHelper.filterThemedTokens(tokens, theme)
+        processedTokens = includeDependents
+            ? themedTokensWithDependents(tokens, theme)
+            : ThemeHelper.filterThemedTokens(tokens, theme)
         if (processedTokens.length === 0) {
             return []
         }
@@ -51,7 +54,51 @@ function processTokens(tokens: Array<Token>, themePath: string = '', theme?: Tok
  * @returns Filtered array of tokens
  */
 function processThemeTokens(tokens: Array<Token>, themePath: string = '', theme?: TokenTheme): Array<Token> {
-    return processTokens(tokens, themePath, theme).filter(token => !isComponentToken(token))
+    return processTokens(tokens, themePath, theme, true).filter(token => !isComponentToken(token))
+}
+
+/**
+ * Collects the ids of the tokens a token value references, at any depth
+ *
+ * @param value - A token value, or any part of one
+ * @param found - Set the ids are added to
+ * @returns The same set
+ */
+function referencedTokenIds(value: unknown, found: Set<string> = new Set()): Set<string> {
+    if (!value || typeof value !== 'object') return found
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+        if (key === 'referencedTokenId' && typeof child === 'string') found.add(child)
+        else referencedTokenIds(child, found)
+    }
+    return found
+}
+
+/**
+ * Filters tokens to the ones a theme overrides, plus every token that references one of
+ * them, directly or through other tokens. CSS resolves var() where a variable is declared,
+ * so a gradient declared once on :root keeps its stops' base colours inside a nested
+ * theme block unless the theme file declares it again.
+ *
+ * @param tokens - Tokens with the theme applied
+ * @param theme - The theme being written
+ * @returns The themed tokens and their dependents, in their original order
+ */
+function themedTokensWithDependents(tokens: Array<Token>, theme: TokenTheme): Array<Token> {
+    const themed = new Set(theme.overriddenTokens.map(t => t.id))
+    const references = new Map(tokens.map(token => [token.id, referencedTokenIds((token as Token & { value: unknown }).value)]))
+
+    let added = true
+    while (added) {
+        added = false
+        for (const token of tokens) {
+            if (themed.has(token.id)) continue
+            if ([...references.get(token.id)!].some(id => themed.has(id))) {
+                themed.add(token.id)
+                added = true
+            }
+        }
+    }
+    return tokens.filter(token => themed.has(token.id))
 }
 
 /**
@@ -132,6 +179,17 @@ function tailwindImportLine(themePath: string): string {
     return exportConfiguration.globalPrefix
         ? `@import "tailwindcss" prefix(${exportConfiguration.globalPrefix});\n\n`
         : '@import "tailwindcss";\n\n'
+}
+
+/**
+ * Decides whether a block is outside @theme, where Tailwind's prefix() does not rename
+ * variables, so they have to be declared under their full names
+ *
+ * @param selector - CSS selector of the block
+ * @returns True for any selector other than @theme
+ */
+function isOutsideTheme(selector: string): boolean {
+    return !selector.trim().startsWith('@theme')
 }
 
 /**
@@ -235,14 +293,16 @@ function generateTypographyContent(tokens: Array<Token>, tokenGroups: Array<Toke
  * @param tokenGroups - Array of token groups
  * @param colorTokensNeedingOklch - Set of token IDs that need OKLCH utility variables
  * @param type - Specific token type (if applicable)
+ * @param useRuntimeNames - Declare variables under their full names, for blocks outside @theme
  * @returns CSS variable declarations as a string
  */
 function generateCSSVariables(
-    tokens: Array<Token>, 
-    mappedTokens: Map<string, Token>, 
+    tokens: Array<Token>,
+    mappedTokens: Map<string, Token>,
     tokenGroups: Array<TokenGroup>,
     colorTokensNeedingOklch?: Set<string>,
-    type?: TokenType
+    type?: TokenType,
+    useRuntimeNames: boolean = false
 ): string {
     const indentString = GeneralHelper.indent(exportConfiguration.indent)
     let cssVariables = ''
@@ -273,7 +333,7 @@ function generateCSSVariables(
         
         // Convert tokens to CSS variable declarations
         const cssDeclarations = tokensOfType
-            .map((token) => convertedToken(token, mappedTokens, tokenGroups, colorTokensNeedingOklch))
+            .map((token) => convertedToken(token, mappedTokens, tokenGroups, colorTokensNeedingOklch, useRuntimeNames))
             .filter((declaration): declaration is string => declaration !== null) // Filter out null returns
             .join("\n")
         
@@ -324,6 +384,12 @@ export function styleOutputFile(tokens: Array<Token>, tokenGroups: Array<TokenGr
         return null
     }
 
+    // Use configured selector for base tokens or theme selector for themed tokens
+    const selector = themePath && theme
+        ? exportConfiguration.themeSelector.replace('{theme}', themePath)
+        : exportConfiguration.cssSelector
+    const useRuntimeNames = isOutsideTheme(selector)
+
     // Analyze tokens for OKLCH utility needs
     const colorTokensNeedingOklch = analyzeTokensForOklchUtilities(processedTokens, tokenGroups)
     // Generate OKLCH utility variables
@@ -333,7 +399,7 @@ export function styleOutputFile(tokens: Array<Token>, tokenGroups: Array<TokenGr
             .map(id => {
                 const token = mappedTokens.get(id)
                 if (token) {
-                    return generateOklchUtilityVariable(token, tokenGroups)
+                    return generateOklchUtilityVariable(token, tokenGroups, useRuntimeNames)
                 }
                 return ''
             })
@@ -351,11 +417,6 @@ export function styleOutputFile(tokens: Array<Token>, tokenGroups: Array<TokenGr
         Array.from(new Set(processedTokens.map(t => t.tokenType)))
     )
 
-    // Use configured selector for base tokens or theme selector for themed tokens
-    const selector = themePath && theme 
-        ? exportConfiguration.themeSelector.replace('{theme}', themePath)
-        : exportConfiguration.cssSelector
-
     // Generate CSS variables
     let cssVariables = ''
     // Include reset rules in the base file if not using separate per type structure
@@ -365,7 +426,7 @@ export function styleOutputFile(tokens: Array<Token>, tokenGroups: Array<TokenGr
     }
     // Prepend OKLCH utility variables
     cssVariables += oklchUtilityVariables
-    cssVariables += generateCSSVariables(processedTokens, mappedTokens, tokenGroups, colorTokensNeedingOklch)
+    cssVariables += generateCSSVariables(processedTokens, mappedTokens, tokenGroups, colorTokensNeedingOklch, undefined, useRuntimeNames)
 
     content += `${blockDirective(selector, processedTokens)} {\n${cssVariables}}\n`
 
@@ -396,9 +457,12 @@ export function styleOutputFile(tokens: Array<Token>, tokenGroups: Array<TokenGr
  * @param tokenGroups - Array of token groups
  * @param themePath - Path of the theme (if applicable)
  * @param theme - Theme object (if applicable)
+ * @param extraBlocks - Extra collection mode blocks to append to the base file
+ * @param themePaths - Themes written to their own files; the base block is repeated on their
+ *   selectors so component tokens re-resolve inside a nested theme wrapper
  * @returns OutputTextFile object or null if there are no component tokens
  */
-export function componentOutputFile(tokens: Array<Token>, tokenGroups: Array<TokenGroup>, themePath: string = '', theme?: TokenTheme, extraBlocks: string = ''): OutputTextFile | null {
+export function componentOutputFile(tokens: Array<Token>, tokenGroups: Array<TokenGroup>, themePath: string = '', theme?: TokenTheme, extraBlocks: string = '', themePaths: Array<string> = []): OutputTextFile | null {
     const mappedTokens = new Map(tokens.map((token) => [token.id, token]))
 
     const componentTokens = processTokens(tokens, themePath, theme).filter(token => isComponentToken(token))
@@ -406,10 +470,15 @@ export function componentOutputFile(tokens: Array<Token>, tokenGroups: Array<Tok
         return null
     }
 
-    // Component tokens are plain custom properties, so they never go in an @theme block
+    // Component tokens are plain custom properties, so they never go in an @theme block.
+    // CSS resolves var() where a variable is declared, so a component token declared only on
+    // :root keeps the base theme's colours inside a nested theme wrapper. Declaring the base
+    // block on every theme selector too makes it re-resolve there. The mode blocks below have
+    // the same specificity and come later, so they still win on the same element.
+    const baseSelector = exportConfiguration.cssSelector.trim().startsWith('@') ? ':root' : exportConfiguration.cssSelector
     const selector = themePath && theme
         ? exportConfiguration.themeSelector.replace('{theme}', themePath)
-        : exportConfiguration.cssSelector.trim().startsWith('@') ? ':root' : exportConfiguration.cssSelector
+        : [baseSelector, ...themePaths.map(path => exportConfiguration.themeSelector.replace('{theme}', path))].join(', ')
 
     const cssVariables = componentTokens
         .map((token) => convertedToken(token, mappedTokens, tokenGroups, undefined, true))
@@ -517,7 +586,7 @@ export function generateStyleFiles(tokens: Array<Token>, tokenGroups: Array<Toke
 
         // Generate CSS variables
         let cssVariables = ''
-        cssVariables += generateCSSVariables(tokensOfType, mappedTokens, tokenGroups, undefined, type)
+        cssVariables += generateCSSVariables(tokensOfType, mappedTokens, tokenGroups, undefined, type, isOutsideTheme(selector))
 
         // Add the CSS variables to the content
         content += `${themeDirective} {\n${cssVariables}}\n`

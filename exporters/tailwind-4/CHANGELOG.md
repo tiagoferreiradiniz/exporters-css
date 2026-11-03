@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.11.1] - 2026-11-03
+
+### Fixed
+- Theme files (`tailwind.<theme>.css`) declare full runtime names (`--cb-color-…`). They sit
+  outside `@theme`, where Tailwind's `prefix()` does not apply, so unprefixed overrides were
+  never read.
+- `var()` references are always written with the global prefix (`var(--cb-ref-…)`), in `@theme`
+  too. Tailwind prefixes declared names but not references, so they pointed at variables that
+  did not exist.
+- Typography classes read the prefixed variables (`var(--cb-text-…)`).
+- Theme files also repeat tokens that reference a themed token (e.g. gradients built from
+  Semantic colours), so they re-resolve inside a nested `[data-theme]` wrapper.
+- The base `components.css` block also targets every theme selector
+  (`:root, [data-theme="light"], [data-theme="dark"]`), so component tokens re-resolve inside a
+  nested theme wrapper.
+- Rebuilt against the current `utils`, which brings in the `5_5` naming fix.
+
+### Changed
+- `HANDOFF.md` and the README list the global prefix `cb` and `themeDirective: static`, which
+  the Cobalt export needs for runtime theming.
+
 ## [1.11.0] - 2026-10-30
 
 ### Added
